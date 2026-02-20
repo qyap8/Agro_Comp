@@ -12,20 +12,26 @@ namespace drivers {
 
 bool DisplayDriver::begin(const DisplayConfig& cfg) {
   cfg_ = cfg;
+  const bool hasPsram = psramFound() && ESP.getPsramSize() > 0;
 
-  // TODO: verify this default pin map against your exact Waveshare board revision.
+  // TODO: verify this pin map against your exact Waveshare board revision.
   esp_lcd_rgb_panel_config_t c = {};
   c.clk_src = LCD_CLK_SRC_DEFAULT;
   c.data_width = 16;
   c.psram_trans_align = 64;
   c.sram_trans_align = 64;
 
-  // RGB panels need scanout FB. Prefer PSRAM + small SRAM bounce buffer.
-  // This mode is more tolerant on ESP32-S3 Arduino toolchains.
-  c.num_fbs = 1;
-  c.flags.fb_in_psram = 1;
+  if (hasPsram) {
+    // Preferred path: scanout framebuffer in PSRAM.
+    c.num_fbs = 1;
+    c.flags.fb_in_psram = 1;
+  } else {
+    // Fallback path: no internal framebuffer, use bounce + LVGL partial buffers in SRAM.
+    c.num_fbs = 0;
+    c.flags.no_fb = 1;
+  }
 #if ESP_IDF_VERSION_MAJOR >= 5
-  c.bounce_buffer_size_px = cfg_.hres * 20;  // ~32KB for RGB565 at 800 px width
+  c.bounce_buffer_size_px = cfg_.hres * (hasPsram ? 20 : 10);
 #endif
 
   c.pclk_gpio_num = LCD_PIN_PCLK;
@@ -49,25 +55,18 @@ bool DisplayDriver::begin(const DisplayConfig& cfg) {
   c.timings.vsync_pulse_width = LCD_VSYNC_PW;
   c.timings.flags.pclk_active_neg = true;
 
-  Serial.printf("[display] RGB ctrl pins PCLK=%d HSYNC=%d VSYNC=%d DE=%d\n", c.pclk_gpio_num, c.hsync_gpio_num, c.vsync_gpio_num, c.de_gpio_num);
-  esp_rom_printf("[display] RGB ctrl pins PCLK=%d HSYNC=%d VSYNC=%d DE=%d\n", c.pclk_gpio_num, c.hsync_gpio_num, c.vsync_gpio_num, c.de_gpio_num);
-  Serial.printf("[display] psramFound=%d freeHeap=%u freePsram=%u\n", (int)psramFound(), (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getFreePsram());
-  esp_rom_printf("[display] psramFound=%d freeHeap=%u freePsram=%u\n", (int)psramFound(), (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getFreePsram());
+  Serial.printf("[display] RGB ctrl pins PCLK=%d HSYNC=%d VSYNC=%d DE=%d\n", c.pclk_gpio_num, c.hsync_gpio_num,
+                c.vsync_gpio_num, c.de_gpio_num);
+  esp_rom_printf("[display] RGB ctrl pins PCLK=%d HSYNC=%d VSYNC=%d DE=%d\n", c.pclk_gpio_num, c.hsync_gpio_num,
+                 c.vsync_gpio_num, c.de_gpio_num);
+  Serial.printf("[display] psramFound=%d freeHeap=%u freePsram=%u mode=%s\n", (int)psramFound(),
+                (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getFreePsram(), hasPsram ? "FB_PSRAM" : "NO_FB_SRAM");
+  esp_rom_printf("[display] psramFound=%d freeHeap=%u freePsram=%u mode=%s\n", (int)psramFound(),
+                 (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getFreePsram(), hasPsram ? "FB_PSRAM" : "NO_FB_SRAM");
+
   if (esp_lcd_new_rgb_panel(&c, &panel_) != ESP_OK) {
-    Serial.println("[display] esp_lcd_new_rgb_panel failed in fb_in_psram mode; trying no_fb fallback");
-#if ESP_IDF_VERSION_MAJOR >= 5
-    c.num_fbs = 0;
-    c.flags.fb_in_psram = 0;
-    c.flags.no_fb = 1;
-    c.bounce_buffer_size_px = cfg_.hres * 20;
-    if (esp_lcd_new_rgb_panel(&c, &panel_) != ESP_OK) {
-      Serial.println("[display] esp_lcd_new_rgb_panel failed (enable PSRAM, verify RGB pins/timings)");
-      return false;
-    }
-#else
-    Serial.println("[display] esp_lcd_new_rgb_panel failed (enable PSRAM, verify RGB pins/timings)");
+    Serial.println("[display] esp_lcd_new_rgb_panel failed");
     return false;
-#endif
   }
   if (esp_lcd_panel_init(panel_) != ESP_OK) {
     Serial.println("[display] esp_lcd_panel_init failed");
@@ -76,9 +75,10 @@ bool DisplayDriver::begin(const DisplayConfig& cfg) {
   esp_lcd_panel_disp_on_off(panel_, true);
 
   size_t pxCount = cfg_.hres * cfg_.bufLines;
-  buf1_ = (lv_color_t*)heap_caps_malloc(pxCount * sizeof(lv_color_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  buf2_ = (lv_color_t*)heap_caps_malloc(pxCount * sizeof(lv_color_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (!buf1_ || !buf2_) return false;
+  uint32_t caps = hasPsram ? (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  buf1_ = (lv_color_t*)heap_caps_malloc(pxCount * sizeof(lv_color_t), caps);
+  if (!buf1_) return false;
+  buf2_ = hasPsram ? (lv_color_t*)heap_caps_malloc(pxCount * sizeof(lv_color_t), caps) : nullptr;
 
 #if LVGL_VERSION_MAJOR >= 9
   display_ = lv_display_create(cfg_.hres, cfg_.vres);
