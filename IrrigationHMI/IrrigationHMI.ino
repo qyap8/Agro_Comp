@@ -98,7 +98,7 @@ static void comm_task(void* arg) {
 
 void setup() {
   Serial.begin(115200);
-  delay(50);
+  vTaskDelay(pdMS_TO_TICKS(50));
 
   gState.begin();
   gBus.begin(64);

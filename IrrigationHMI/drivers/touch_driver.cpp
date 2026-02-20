@@ -60,6 +60,19 @@ bool TouchDriver::readPoint(TouchPoint& p) {
   return true;
 }
 
+#if LVGL_VERSION_MAJOR >= 9
+void TouchDriver::lvglReadCb(lv_indev_t* indev, lv_indev_data_t* data) {
+  (void)indev;
+  TouchPoint p;
+  if (!sTouch || !sTouch->readPoint(p)) {
+    data->state = LV_INDEV_STATE_RELEASED;
+    return;
+  }
+  data->state = p.pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+  data->point.x = p.x;
+  data->point.y = p.y;
+}
+#else
 void TouchDriver::lvglReadCb(lv_indev_drv_t* indev, lv_indev_data_t* data) {
   (void)indev;
   TouchPoint p;
@@ -71,12 +84,21 @@ void TouchDriver::lvglReadCb(lv_indev_drv_t* indev, lv_indev_data_t* data) {
   data->point.x = p.x;
   data->point.y = p.y;
 }
+#endif
 
 bool TouchDriver::registerLvglIndev() {
+#if LVGL_VERSION_MAJOR >= 9
+  lv_indev_t* indev = lv_indev_create();
+  if (!indev) return false;
+  lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
+  lv_indev_set_read_cb(indev, lvglReadCb);
+  return true;
+#else
   lv_indev_drv_init(&indevDrv_);
   indevDrv_.type = LV_INDEV_TYPE_POINTER;
   indevDrv_.read_cb = lvglReadCb;
   return lv_indev_drv_register(&indevDrv_) != nullptr;
+#endif
 }
 
 }  // namespace drivers

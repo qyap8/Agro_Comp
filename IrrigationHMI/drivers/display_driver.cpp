@@ -5,11 +5,8 @@
 
 namespace drivers {
 
-static DisplayDriver* sSelf = nullptr;
-
 bool DisplayDriver::begin(const DisplayConfig& cfg) {
   cfg_ = cfg;
-  sSelf = this;
 
   // TODO: verify this default pin map against your exact Waveshare board revision.
   esp_lcd_rgb_panel_config_t c = {};
@@ -47,6 +44,13 @@ bool DisplayDriver::begin(const DisplayConfig& cfg) {
   buf2_ = (lv_color_t*)heap_caps_malloc(pxCount * sizeof(lv_color_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (!buf1_ || !buf2_) return false;
 
+#if LVGL_VERSION_MAJOR >= 9
+  display_ = lv_display_create(cfg_.hres, cfg_.vres);
+  if (!display_) return false;
+  lv_display_set_buffers(display_, buf1_, buf2_, pxCount * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
+  lv_display_set_flush_cb(display_, flushCb);
+  lv_display_set_user_data(display_, this);
+#else
   lv_disp_draw_buf_init(&drawBuf_, buf1_, buf2_, pxCount);
   lv_disp_drv_init(&dispDrv_);
   dispDrv_.hor_res = cfg_.hres;
@@ -55,6 +59,7 @@ bool DisplayDriver::begin(const DisplayConfig& cfg) {
   dispDrv_.flush_cb = flushCb;
   dispDrv_.user_data = this;
   lv_disp_drv_register(&dispDrv_);
+#endif
 
   if (cfg_.backlightPin >= 0) {
     pinMode(cfg_.backlightPin, OUTPUT);
@@ -70,6 +75,17 @@ void DisplayDriver::setBrightness(uint8_t pct) {
   digitalWrite(cfg_.backlightPin, on == cfg_.backlightActiveHigh ? HIGH : LOW);
 }
 
+#if LVGL_VERSION_MAJOR >= 9
+void DisplayDriver::flushCb(lv_display_t* disp, const lv_area_t* area, uint8_t* pxMap) {
+  auto* self = static_cast<DisplayDriver*>(lv_display_get_user_data(disp));
+  if (!self || !self->panel_) {
+    lv_display_flush_ready(disp);
+    return;
+  }
+  esp_lcd_panel_draw_bitmap(self->panel_, area->x1, area->y1, area->x2 + 1, area->y2 + 1, pxMap);
+  lv_display_flush_ready(disp);
+}
+#else
 void DisplayDriver::flushCb(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* colorP) {
   auto* self = static_cast<DisplayDriver*>(drv->user_data);
   if (!self || !self->panel_) {
@@ -79,5 +95,6 @@ void DisplayDriver::flushCb(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_
   esp_lcd_panel_draw_bitmap(self->panel_, area->x1, area->y1, area->x2 + 1, area->y2 + 1, colorP);
   lv_disp_flush_ready(drv);
 }
+#endif
 
 }  // namespace drivers
