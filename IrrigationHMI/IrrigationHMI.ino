@@ -127,3 +127,24 @@ void setup() {
 void loop() {
   vTaskDelay(pdMS_TO_TICKS(1000));
 }
+
+
+// Arduino IDE does not always compile nested subfolders as separate translation units.
+// Force-link project modules by including implementation units here.
+#include "core/state.cpp"
+#include "core/event_bus.cpp"
+#include "core/logic.cpp"
+
+#include "comm/protocol.cpp"
+#include "comm/rs485_transport.cpp"
+
+#include "drivers/display_driver.cpp"
+#include "drivers/touch_driver.cpp"
+
+#include "ui/ui_app.cpp"
+#include "ui/screens/dashboard.cpp"
+#include "ui/screens/manual.cpp"
+#include "ui/screens/schedules.cpp"
+#include "ui/screens/modules.cpp"
+#include "ui/screens/settings.cpp"
+#include "ui/screens/diagnostics.cpp"
