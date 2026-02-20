@@ -4,6 +4,7 @@
 #include <esp_lcd_panel_rgb.h>
 #include <esp_idf_version.h>
 #include <esp_system.h>
+#include <esp_rom_sys.h>
 
 #include "../config.h"
 
@@ -49,7 +50,9 @@ bool DisplayDriver::begin(const DisplayConfig& cfg) {
   c.timings.flags.pclk_active_neg = true;
 
   Serial.printf("[display] RGB ctrl pins PCLK=%d HSYNC=%d VSYNC=%d DE=%d\n", c.pclk_gpio_num, c.hsync_gpio_num, c.vsync_gpio_num, c.de_gpio_num);
+  esp_rom_printf("[display] RGB ctrl pins PCLK=%d HSYNC=%d VSYNC=%d DE=%d\n", c.pclk_gpio_num, c.hsync_gpio_num, c.vsync_gpio_num, c.de_gpio_num);
   Serial.printf("[display] psramFound=%d freeHeap=%u freePsram=%u\n", (int)psramFound(), (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getFreePsram());
+  esp_rom_printf("[display] psramFound=%d freeHeap=%u freePsram=%u\n", (int)psramFound(), (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getFreePsram());
   if (esp_lcd_new_rgb_panel(&c, &panel_) != ESP_OK) {
     Serial.println("[display] esp_lcd_new_rgb_panel failed in fb_in_psram mode; trying no_fb fallback");
 #if ESP_IDF_VERSION_MAJOR >= 5

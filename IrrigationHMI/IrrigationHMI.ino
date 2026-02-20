@@ -17,6 +17,7 @@
 */
 
 #include <Arduino.h>
+#include <esp_rom_sys.h>
 #ifndef LV_CONF_INCLUDE_SIMPLE
 #define LV_CONF_INCLUDE_SIMPLE
 #endif
@@ -99,8 +100,10 @@ static void comm_task(void* arg) {
 void setup() {
   Serial.begin(115200);
   vTaskDelay(pdMS_TO_TICKS(50));
+  esp_rom_printf("[boot] setup start\n");
 
   Serial.printf("[boot] PSRAM %s, size=%u bytes\n", psramFound() ? "FOUND" : "MISSING", (unsigned)ESP.getPsramSize());
+  esp_rom_printf("[boot] PSRAM %s size=%u\n", psramFound() ? "FOUND" : "MISSING", (unsigned)ESP.getPsramSize());
   Serial.printf("[boot] Pins RGB PCLK=%d HSYNC=%d VSYNC=%d DE=%d | TP SDA=%d SCL=%d | RS485 TX=%d RX=%d\n",
                 LCD_PIN_PCLK, LCD_PIN_HSYNC, LCD_PIN_VSYNC, LCD_PIN_DE, TOUCH_I2C_SDA, TOUCH_I2C_SCL,
                 RS485_TX_PIN, RS485_RX_PIN);
@@ -124,6 +127,7 @@ void setup() {
   dcfg.backlightActiveHigh = LCD_BL_ACTIVE_HIGH;
   if (!gDisplay.begin(dcfg)) {
     Serial.println("[boot] Display init failed. Halting.");
+    esp_rom_printf("[boot] Display init failed. Halting.\n");
     while (true) vTaskDelay(pdMS_TO_TICKS(1000));
   }
 
