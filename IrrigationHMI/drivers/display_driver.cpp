@@ -4,6 +4,8 @@
 #include <esp_lcd_panel_rgb.h>
 #include <esp_idf_version.h>
 
+#include "../config.h"
+
 namespace drivers {
 
 bool DisplayDriver::begin(const DisplayConfig& cfg) {
@@ -24,26 +26,28 @@ bool DisplayDriver::begin(const DisplayConfig& cfg) {
   c.flags.fb_in_psram = 1;
 #endif
 
-  c.pclk_gpio_num = 41;
-  c.hsync_gpio_num = 39;
-  c.vsync_gpio_num = 40;
-  c.de_gpio_num = 42;
+  c.pclk_gpio_num = LCD_PIN_PCLK;
+  c.hsync_gpio_num = LCD_PIN_HSYNC;
+  c.vsync_gpio_num = LCD_PIN_VSYNC;
+  c.de_gpio_num = LCD_PIN_DE;
   c.disp_gpio_num = -1;
 
-  int d[16] = {14, 38, 18, 17, 10, 39, 0, 45, 48, 47, 21, 1, 2, 42, 41, 40};
+  int d[16] = {LCD_PIN_B0, LCD_PIN_B1, LCD_PIN_B2, LCD_PIN_B3, LCD_PIN_B4, LCD_PIN_G0, LCD_PIN_G1, LCD_PIN_G2,
+               LCD_PIN_G3, LCD_PIN_G4, LCD_PIN_G5, LCD_PIN_R0, LCD_PIN_R1, LCD_PIN_R2, LCD_PIN_R3, LCD_PIN_R4};
   for (int i = 0; i < 16; ++i) c.data_gpio_nums[i] = d[i];
 
-  c.timings.pclk_hz = 12000000;
+  c.timings.pclk_hz = LCD_PCLK_HZ;
   c.timings.h_res = cfg_.hres;
   c.timings.v_res = cfg_.vres;
-  c.timings.hsync_back_porch = 40;
-  c.timings.hsync_front_porch = 20;
-  c.timings.hsync_pulse_width = 1;
-  c.timings.vsync_back_porch = 8;
-  c.timings.vsync_front_porch = 4;
-  c.timings.vsync_pulse_width = 1;
+  c.timings.hsync_back_porch = LCD_HSYNC_BP;
+  c.timings.hsync_front_porch = LCD_HSYNC_FP;
+  c.timings.hsync_pulse_width = LCD_HSYNC_PW;
+  c.timings.vsync_back_porch = LCD_VSYNC_BP;
+  c.timings.vsync_front_porch = LCD_VSYNC_FP;
+  c.timings.vsync_pulse_width = LCD_VSYNC_PW;
   c.timings.flags.pclk_active_neg = true;
 
+  Serial.printf("[display] RGB ctrl pins PCLK=%d HSYNC=%d VSYNC=%d DE=%d\n", c.pclk_gpio_num, c.hsync_gpio_num, c.vsync_gpio_num, c.de_gpio_num);
   if (esp_lcd_new_rgb_panel(&c, &panel_) != ESP_OK) {
     Serial.println("[display] esp_lcd_new_rgb_panel failed (enable PSRAM, verify RGB pins/timings)");
     return false;
