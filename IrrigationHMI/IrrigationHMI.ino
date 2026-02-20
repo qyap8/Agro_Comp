@@ -111,8 +111,9 @@ void setup() {
     Serial.println("[boot] Backlight control is on CH422G EXIO2 (not yet controlled by this firmware)");
   }
   if (!psramFound()) {
-    Serial.println("[boot] WARN: PSRAM not detected, running reduced display mode.");
-    esp_rom_printf("[boot] WARN: PSRAM not detected, running reduced display mode.\n");
+    Serial.println("[boot] ERROR: PSRAM not detected. Set Board=ESP32S3 Dev Module, Flash=16MB, PSRAM=OPI.");
+    esp_rom_printf("[boot] ERROR: PSRAM not detected. Fix board settings and reboot.\n");
+    while (true) vTaskDelay(pdMS_TO_TICKS(1000));
   }
   gState.begin();
   gBus.begin(64);
@@ -122,7 +123,7 @@ void setup() {
   drivers::DisplayConfig dcfg;
   dcfg.hres = LCD_HRES;
   dcfg.vres = LCD_VRES;
-  dcfg.bufLines = psramFound() ? LVGL_BUF_LINES : 20;
+  dcfg.bufLines = LVGL_BUF_LINES;
   dcfg.backlightPin = LCD_BL_PIN;
   dcfg.backlightActiveHigh = LCD_BL_ACTIVE_HIGH;
   if (!gDisplay.begin(dcfg)) {
