@@ -2,29 +2,29 @@
 
 namespace ui::screens {
 
-static lv_obj_t* sPulseSlider = nullptr;
-static lv_obj_t* sPulseLabel = nullptr;
-static core::EventBus* sBus = nullptr;
+static lv_obj_t* g_setPulseSlider = nullptr;
+static lv_obj_t* g_setPulseLabel = nullptr;
+static core::EventBus* g_setBus = nullptr;
 
-static void pulseCb(lv_event_t* e) {
+static void settingsPulseCb(lv_event_t* e) {
   auto* slider = (lv_obj_t*)lv_event_get_target(e);
   core::Event ev;
   ev.type = core::EventType::SETTINGS_PULSE_WIDTH;
   ev.v = (uint16_t)lv_slider_get_value(slider);
-  if (sBus) sBus->publish(ev);
+  if (g_setBus) g_setBus->publish(ev);
 }
 
 void buildSettings(lv_obj_t* parent, core::EventBus* bus) {
-  sBus = bus;
+  g_setBus = bus;
 
-  sPulseLabel = lv_label_create(parent);
-  lv_obj_align(sPulseLabel, LV_ALIGN_TOP_LEFT, 16, 16);
+  g_setPulseLabel = lv_label_create(parent);
+  lv_obj_align(g_setPulseLabel, LV_ALIGN_TOP_LEFT, 16, 16);
 
-  sPulseSlider = lv_slider_create(parent);
-  lv_slider_set_range(sPulseSlider, 150, 300);
-  lv_obj_set_width(sPulseSlider, 520);
-  lv_obj_align(sPulseSlider, LV_ALIGN_TOP_LEFT, 16, 48);
-  lv_obj_add_event_cb(sPulseSlider, pulseCb, LV_EVENT_VALUE_CHANGED, nullptr);
+  g_setPulseSlider = lv_slider_create(parent);
+  lv_slider_set_range(g_setPulseSlider, 150, 300);
+  lv_obj_set_width(g_setPulseSlider, 520);
+  lv_obj_align(g_setPulseSlider, LV_ALIGN_TOP_LEFT, 16, 48);
+  lv_obj_add_event_cb(g_setPulseSlider, settingsPulseCb, LV_EVENT_VALUE_CHANGED, nullptr);
 
   lv_obj_t* lang = lv_label_create(parent);
   lv_label_set_text(lang, "Language RU/EN: stub");
@@ -36,9 +36,9 @@ void buildSettings(lv_obj_t* parent, core::EventBus* bus) {
 }
 
 void refreshSettings(const core::SystemState& state) {
-  if (!sPulseSlider) return;
-  lv_slider_set_value(sPulseSlider, state.settings.pulseWidthMs, LV_ANIM_OFF);
-  lv_label_set_text_fmt(sPulseLabel, "Pulse width: %u ms", state.settings.pulseWidthMs);
+  if (!g_setPulseSlider) return;
+  lv_slider_set_value(g_setPulseSlider, state.settings.pulseWidthMs, LV_ANIM_OFF);
+  lv_label_set_text_fmt(g_setPulseLabel, "Pulse width: %u ms", state.settings.pulseWidthMs);
 }
 
 }  // namespace ui::screens

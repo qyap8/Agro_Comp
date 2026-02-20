@@ -6,7 +6,15 @@ void UiApp::begin(core::SystemState* state, core::EventBus* bus) {
   state_ = state;
   bus_ = bus;
 
-  lv_obj_t* tabs = lv_tabview_create(lv_scr_act(), LV_DIR_TOP, 52);
+  lv_obj_t* tabs = lv_tabview_create(lv_scr_act());
+#if LVGL_VERSION_MAJOR >= 9
+  lv_tabview_set_tab_bar_position(tabs, LV_DIR_TOP);
+  lv_tabview_set_tab_bar_size(tabs, 52);
+#else
+  lv_tabview_set_tab_pos(tabs, LV_DIR_TOP);
+  lv_tabview_set_tab_size(tabs, 52);
+#endif
+
   lv_obj_t* tDash = lv_tabview_add_tab(tabs, "Dashboard");
   lv_obj_t* tManual = lv_tabview_add_tab(tabs, "Manual");
   lv_obj_t* tSch = lv_tabview_add_tab(tabs, "Schedules");
