@@ -3,6 +3,7 @@
 #include <esp_heap_caps.h>
 #include <esp_lcd_panel_rgb.h>
 #include <esp_idf_version.h>
+#include <esp_system.h>
 
 #include "../config.h"
 
@@ -16,14 +17,14 @@ bool DisplayDriver::begin(const DisplayConfig& cfg) {
   c.clk_src = LCD_CLK_SRC_DEFAULT;
   c.data_width = 16;
   c.psram_trans_align = 64;
+  c.sram_trans_align = 64;
 
-  // RGB panels need a scanout framebuffer. Keep one FB in PSRAM.
-  // If this fails, ensure PSRAM is enabled in Arduino board settings.
+  // RGB panels need scanout FB. Prefer PSRAM + small SRAM bounce buffer.
+  // This mode is more tolerant on ESP32-S3 Arduino toolchains.
   c.num_fbs = 1;
+  c.flags.fb_in_psram = 1;
 #if ESP_IDF_VERSION_MAJOR >= 5
-  c.flags.fb_in_psram = 1;
-#else
-  c.flags.fb_in_psram = 1;
+  c.bounce_buffer_size_px = cfg_.hres * 20;  // ~32KB for RGB565 at 800 px width
 #endif
 
   c.pclk_gpio_num = LCD_PIN_PCLK;
@@ -48,9 +49,22 @@ bool DisplayDriver::begin(const DisplayConfig& cfg) {
   c.timings.flags.pclk_active_neg = true;
 
   Serial.printf("[display] RGB ctrl pins PCLK=%d HSYNC=%d VSYNC=%d DE=%d\n", c.pclk_gpio_num, c.hsync_gpio_num, c.vsync_gpio_num, c.de_gpio_num);
+  Serial.printf("[display] psramFound=%d freeHeap=%u freePsram=%u\n", (int)psramFound(), (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getFreePsram());
   if (esp_lcd_new_rgb_panel(&c, &panel_) != ESP_OK) {
+    Serial.println("[display] esp_lcd_new_rgb_panel failed in fb_in_psram mode; trying no_fb fallback");
+#if ESP_IDF_VERSION_MAJOR >= 5
+    c.num_fbs = 0;
+    c.flags.fb_in_psram = 0;
+    c.flags.no_fb = 1;
+    c.bounce_buffer_size_px = cfg_.hres * 20;
+    if (esp_lcd_new_rgb_panel(&c, &panel_) != ESP_OK) {
+      Serial.println("[display] esp_lcd_new_rgb_panel failed (enable PSRAM, verify RGB pins/timings)");
+      return false;
+    }
+#else
     Serial.println("[display] esp_lcd_new_rgb_panel failed (enable PSRAM, verify RGB pins/timings)");
     return false;
+#endif
   }
   if (esp_lcd_panel_init(panel_) != ESP_OK) {
     Serial.println("[display] esp_lcd_panel_init failed");

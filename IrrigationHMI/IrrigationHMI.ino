@@ -107,6 +107,10 @@ void setup() {
   if (LCD_BL_PIN < 0) {
     Serial.println("[boot] Backlight control is on CH422G EXIO2 (not yet controlled by this firmware)");
   }
+  if (!psramFound()) {
+    Serial.println("[boot] ERROR: PSRAM not detected. For ESP32-S3 Dev Module set PSRAM=OPI and Flash=16MB.");
+    while (true) vTaskDelay(pdMS_TO_TICKS(1000));
+  }
   gState.begin();
   gBus.begin(64);
 
