@@ -11,7 +11,7 @@ static constexpr int LCD_VRES = 480;
 static constexpr int LVGL_BUF_LINES = 60;  // chunk height for double draw buffers
 
 // RGB control pins (Waveshare ESP32-S3 LCD Touch 7 preset; verify for your HW revision)
-static constexpr int LCD_PIN_PCLK = 9;
+static constexpr int LCD_PIN_PCLK = 7;
 static constexpr int LCD_PIN_HSYNC = 46;
 static constexpr int LCD_PIN_VSYNC = 3;
 static constexpr int LCD_PIN_DE = 5;
@@ -48,13 +48,13 @@ static constexpr int TOUCH_I2C_SCL = 9;   // TODO: verify for your board revisio
 static constexpr uint32_t TOUCH_I2C_FREQ = 400000;
 
 // Backlight
-static constexpr int LCD_BL_PIN = 2;      // TODO: verify for your board revision
+static constexpr int LCD_BL_PIN = -1;     // Backlight is via CH422G EXIO2 on this board
 static constexpr bool LCD_BL_ACTIVE_HIGH = true;
 
 // RS485 default UART settings
 static constexpr uint8_t RS485_UART_NUM = 2;
-static constexpr int RS485_TX_PIN = 43;   // TODO: verify with board UART switch setting
-static constexpr int RS485_RX_PIN = 44;   // TODO: verify with board UART switch setting
+static constexpr int RS485_TX_PIN = 15;   // Waveshare RS485 TXD
+static constexpr int RS485_RX_PIN = 16;   // Waveshare RS485 RXD
 static constexpr int RS485_DE_PIN = -1;   // -1: auto-direction transceiver path
 static constexpr uint32_t RS485_BAUD = 115200;
 

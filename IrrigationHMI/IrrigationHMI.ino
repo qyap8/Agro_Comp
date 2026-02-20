@@ -5,7 +5,7 @@
   - Board: ESP32S3 Dev Module (or Waveshare ESP32-S3-Touch-LCD-7 profile if available)
   - ESP32 Arduino core: 2.0.14+
   - PSRAM: Enabled (OPI PSRAM)
-  - Flash size: 8MB (or board default)
+  - Flash size: 16MB (WROOM N16R8)
 
   Library requirements:
   - lvgl v8.x
@@ -101,6 +101,12 @@ void setup() {
   vTaskDelay(pdMS_TO_TICKS(50));
 
   Serial.printf("[boot] PSRAM %s, size=%u bytes\n", psramFound() ? "FOUND" : "MISSING", (unsigned)ESP.getPsramSize());
+  Serial.printf("[boot] Pins RGB PCLK=%d HSYNC=%d VSYNC=%d DE=%d | TP SDA=%d SCL=%d | RS485 TX=%d RX=%d\n",
+                LCD_PIN_PCLK, LCD_PIN_HSYNC, LCD_PIN_VSYNC, LCD_PIN_DE, TOUCH_I2C_SDA, TOUCH_I2C_SCL,
+                RS485_TX_PIN, RS485_RX_PIN);
+  if (LCD_BL_PIN < 0) {
+    Serial.println("[boot] Backlight control is on CH422G EXIO2 (not yet controlled by this firmware)");
+  }
   gState.begin();
   gBus.begin(64);
 
