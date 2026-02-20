@@ -15,14 +15,12 @@ bool DisplayDriver::begin(const DisplayConfig& cfg) {
   c.data_width = 16;
   c.psram_trans_align = 64;
 
-#if ESP_IDF_VERSION_MAJOR >= 5
-  // Use LVGL-owned draw buffers and prevent esp_lcd from allocating full internal frame buffers
-  // (prevents `no mem for frame buffer` on some Arduino/ESP32 toolchains).
-  c.num_fbs = 0;
-  c.flags.no_fb = 1;
-#else
-  // On older cores keep a single panel framebuffer, preferably in PSRAM.
+  // RGB panels need a scanout framebuffer. Keep one FB in PSRAM.
+  // If this fails, ensure PSRAM is enabled in Arduino board settings.
   c.num_fbs = 1;
+#if ESP_IDF_VERSION_MAJOR >= 5
+  c.flags.fb_in_psram = 1;
+#else
   c.flags.fb_in_psram = 1;
 #endif
 
@@ -47,7 +45,7 @@ bool DisplayDriver::begin(const DisplayConfig& cfg) {
   c.timings.flags.pclk_active_neg = true;
 
   if (esp_lcd_new_rgb_panel(&c, &panel_) != ESP_OK) {
-    Serial.println("[display] esp_lcd_new_rgb_panel failed (check PSRAM and RGB timings)");
+    Serial.println("[display] esp_lcd_new_rgb_panel failed (enable PSRAM, verify RGB pins/timings)");
     return false;
   }
   if (esp_lcd_panel_init(panel_) != ESP_OK) {

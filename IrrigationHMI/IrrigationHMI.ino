@@ -112,9 +112,14 @@ void setup() {
   dcfg.bufLines = LVGL_BUF_LINES;
   dcfg.backlightPin = LCD_BL_PIN;
   dcfg.backlightActiveHigh = LCD_BL_ACTIVE_HIGH;
-  gDisplay.begin(dcfg);
+  if (!gDisplay.begin(dcfg)) {
+    Serial.println("[boot] Display init failed. Halting.");
+    while (true) vTaskDelay(pdMS_TO_TICKS(1000));
+  }
 
-  gTouch.begin(TOUCH_I2C_SDA, TOUCH_I2C_SCL, TOUCH_I2C_FREQ);
+  if (!gTouch.begin(TOUCH_I2C_SDA, TOUCH_I2C_SCL, TOUCH_I2C_FREQ)) {
+    Serial.println("[boot] Touch init failed");
+  }
   gTouch.registerLvglIndev();
 
   gRs485.begin(makeRs485Config());
