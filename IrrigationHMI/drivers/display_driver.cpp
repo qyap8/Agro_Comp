@@ -2,6 +2,7 @@
 
 #include <esp_heap_caps.h>
 #include <esp_lcd_panel_rgb.h>
+#include <esp_idf_version.h>
 
 namespace drivers {
 
@@ -13,7 +14,17 @@ bool DisplayDriver::begin(const DisplayConfig& cfg) {
   c.clk_src = LCD_CLK_SRC_DEFAULT;
   c.data_width = 16;
   c.psram_trans_align = 64;
+
+#if ESP_IDF_VERSION_MAJOR >= 5
+  // Use LVGL-owned draw buffers and prevent esp_lcd from allocating full internal frame buffers
+  // (prevents `no mem for frame buffer` on some Arduino/ESP32 toolchains).
   c.num_fbs = 0;
+  c.flags.no_fb = 1;
+#else
+  // On older cores keep a single panel framebuffer, preferably in PSRAM.
+  c.num_fbs = 1;
+  c.flags.fb_in_psram = 1;
+#endif
 
   c.pclk_gpio_num = 41;
   c.hsync_gpio_num = 39;
@@ -35,8 +46,14 @@ bool DisplayDriver::begin(const DisplayConfig& cfg) {
   c.timings.vsync_pulse_width = 1;
   c.timings.flags.pclk_active_neg = true;
 
-  if (esp_lcd_new_rgb_panel(&c, &panel_) != ESP_OK) return false;
-  if (esp_lcd_panel_init(panel_) != ESP_OK) return false;
+  if (esp_lcd_new_rgb_panel(&c, &panel_) != ESP_OK) {
+    Serial.println("[display] esp_lcd_new_rgb_panel failed (check PSRAM and RGB timings)");
+    return false;
+  }
+  if (esp_lcd_panel_init(panel_) != ESP_OK) {
+    Serial.println("[display] esp_lcd_panel_init failed");
+    return false;
+  }
   esp_lcd_panel_disp_on_off(panel_, true);
 
   size_t pxCount = cfg_.hres * cfg_.bufLines;

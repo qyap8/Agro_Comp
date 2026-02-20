@@ -100,6 +100,7 @@ void setup() {
   Serial.begin(115200);
   vTaskDelay(pdMS_TO_TICKS(50));
 
+  Serial.printf("[boot] PSRAM %s, size=%u bytes\n", psramFound() ? "FOUND" : "MISSING", (unsigned)ESP.getPsramSize());
   gState.begin();
   gBus.begin(64);
 
