@@ -1,3 +1,4 @@
+// Экран расписаний: показывает список и отправляет события Add/Edit в core.
 #include "../ui_app.h"
 
 namespace ui {

@@ -1,3 +1,4 @@
+// LogicController: бизнес-логика полива, очередь клапанов и сохранение настроек.
 #pragma once
 
 #include <Arduino.h>

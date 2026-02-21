@@ -1,3 +1,4 @@
+// EventBus: очередь событий между UI и core-логикой (без жёсткой связности).
 #pragma once
 
 #include <Arduino.h>

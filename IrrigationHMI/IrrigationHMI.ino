@@ -2,6 +2,7 @@
 #include <lvgl.h>
 #include <vector>
 #include "esp_display_panel.hpp"
+#include "lvgl_port_compat.h"
 
 #include "config.h"
 #include "ui/ui_app.h"
@@ -24,6 +25,7 @@ static void logic_task(void *arg) {
     (void)arg;
     AppEvent ev{};
     for (;;) {
+        // Логическая задача: принимает события UI и обновляет состояние контроллера.
         while (g_bus.consume(ev, 0)) {
             g_logic.handleEvent(ev);
         }
@@ -36,6 +38,7 @@ static void comm_task(void *arg) {
     (void)arg;
     std::vector<uint8_t> rx;
     for (;;) {
+        // Коммуникационная задача: неблокирующий опрос RS485.
         g_transport.readFrame(rx, 20);
         vTaskDelay(pdMS_TO_TICKS(5));
     }
@@ -44,6 +47,7 @@ static void comm_task(void *arg) {
 void setup() {
     Serial.begin(115200);
 
+    // Инициализация дисплейной платы строго через ESP32_Display_Panel.
     board->init();
     board->begin();
     lvgl_port_init(board->getLCD(), board->getTouch());
@@ -55,6 +59,7 @@ void setup() {
     g_uiCtx.state = &g_state;
     g_uiCtx.bus = &g_bus;
 
+    // Любые изменения LVGL делаем под lock/unlock.
     lvgl_port_lock(0);
     ui::ui_init(&g_uiCtx);
     lvgl_port_unlock();
@@ -67,6 +72,7 @@ void loop() {
     static uint32_t lastRefresh = 0;
     if (millis() - lastRefresh > 250) {
         lastRefresh = millis();
+        // Периодическое обновление виджетов из актуального SystemState.
         lvgl_port_lock(0);
         ui::ui_refresh();
         lvgl_port_unlock();

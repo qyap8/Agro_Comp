@@ -1,3 +1,4 @@
+// Экран модулей: перезапрос модулей и отображение UID/addr/fw.
 #include "../ui_app.h"
 
 namespace ui {

@@ -1,3 +1,4 @@
+// Протокол: CRC16 Modbus-like (0xA001), сборка и проверка кадра.
 #include "protocol.h"
 
 namespace protocol {

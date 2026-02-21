@@ -1,3 +1,4 @@
+// Транспорт RS485: отправка/приём кадров и базовая статистика связи.
 #include "rs485_transport.h"
 #include "protocol.h"
 
