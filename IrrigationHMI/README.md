@@ -34,6 +34,7 @@ IrrigationHMI/
 ├── IrrigationHMI.ino
 ├── lvgl_port_compat.h
 ├── README.md
+├── all_sources.cpp
 ├── ui/
 │   ├── ui_app.h
 │   ├── ui_app.cpp
@@ -61,6 +62,16 @@ IrrigationHMI/
 │
 └── config.h
 ```
+
+---
+
+
+## 2.1) Почему нужен `all_sources.cpp`
+
+Arduino IDE иногда не линкует `.cpp` из вложенных подпапок скетча как отдельные единицы компиляции.
+Из-за этого появляются ошибки `undefined reference` на функции из `core/`, `comm/`, `ui/`.
+
+Файл `all_sources.cpp` явно подключает все `.cpp` проекта, чтобы линковка была стабильной в Arduino IDE.
 
 ---
 
