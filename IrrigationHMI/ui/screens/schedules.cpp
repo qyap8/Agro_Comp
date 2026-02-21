@@ -3,8 +3,8 @@
 
 namespace ui {
 
-static UiContext *g_ctx;
-static lv_obj_t *list;
+static UiContext *s_schedulesCtx;
+static lv_obj_t *s_schedulesList;
 
 static void save_schedule_cb(lv_event_t *e) {
     (void)e;
@@ -19,16 +19,16 @@ static void save_schedule_cb(lv_event_t *e) {
     AppEvent ev{};
     ev.type = AppEventType::SaveSchedule;
     ev.schedule = s;
-    g_ctx->bus->publish(ev, 0);
+    s_schedulesCtx->bus->publish(ev, 0);
 }
 
 void build_schedules_tab(lv_obj_t *parent, UiContext *ctx) {
-    g_ctx = ctx;
+    s_schedulesCtx = ctx;
     lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
 
-    list = lv_list_create(parent);
-    lv_obj_set_size(list, LV_PCT(100), 300);
+    s_schedulesList = lv_list_create(parent);
+    lv_obj_set_size(s_schedulesList, LV_PCT(100), 300);
 
     lv_obj_t *addBtn = lv_btn_create(parent);
     lv_obj_set_size(addBtn, 220, 56);
@@ -42,9 +42,9 @@ void build_schedules_tab(lv_obj_t *parent, UiContext *ctx) {
 }
 
 void refresh_schedules(UiContext *ctx) {
-    lv_obj_clean(list);
+    lv_obj_clean(s_schedulesList);
     for (const auto &s : ctx->state->schedules) {
-        lv_obj_t *btn = lv_list_add_btn(list, LV_SYMBOL_CALENDAR, "");
+        lv_obj_t *btn = lv_list_add_btn(s_schedulesList, "", "");
         lv_obj_t *lbl = lv_label_create(btn);
         lv_label_set_text_fmt(lbl, "#%u Z%u %02u:%02u %umin mask0x%02X",
                               s.id, s.zone + 1, s.hour, s.minute, s.durationMin, s.daysMask);

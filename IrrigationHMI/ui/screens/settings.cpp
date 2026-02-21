@@ -3,7 +3,7 @@
 
 namespace ui {
 
-static UiContext *g_ctx;
+static UiContext *s_settingsCtx;
 static lv_obj_t *pulseSlider;
 static lv_obj_t *closeSwitch;
 static lv_obj_t *pulseLabel;
@@ -14,7 +14,7 @@ static void pulse_cb(lv_event_t *e) {
     AppEvent ev{};
     ev.type = AppEventType::SetPulseWidth;
     ev.value16 = v;
-    g_ctx->bus->publish(ev, 0);
+    s_settingsCtx->bus->publish(ev, 0);
 }
 
 static void close_boot_cb(lv_event_t *e) {
@@ -22,11 +22,11 @@ static void close_boot_cb(lv_event_t *e) {
     AppEvent ev{};
     ev.type = AppEventType::SetCloseAllOnBoot;
     ev.valueBool = lv_obj_has_state(closeSwitch, LV_STATE_CHECKED);
-    g_ctx->bus->publish(ev, 0);
+    s_settingsCtx->bus->publish(ev, 0);
 }
 
 void build_settings_tab(lv_obj_t *parent, UiContext *ctx) {
-    g_ctx = ctx;
+    s_settingsCtx = ctx;
     lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
 

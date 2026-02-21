@@ -2,7 +2,7 @@
 
 namespace ui {
 
-static UiContext *g_ctx;
+static UiContext *s_manualCtx;
 static lv_obj_t *zoneBtns[APP_MAX_ZONES];
 
 static void zone_cb(lv_event_t *e) {
@@ -10,25 +10,25 @@ static void zone_cb(lv_event_t *e) {
     AppEvent ev{};
     ev.type = AppEventType::ZoneToggle;
     ev.zone = static_cast<uint8_t>(zone);
-    g_ctx->bus->publish(ev, 0);
+    s_manualCtx->bus->publish(ev, 0);
 }
 
 static void stop_all_cb(lv_event_t *e) {
     (void)e;
     AppEvent ev{};
     ev.type = AppEventType::StopAll;
-    g_ctx->bus->publish(ev, 0);
+    s_manualCtx->bus->publish(ev, 0);
 }
 
 static void pump_test_cb(lv_event_t *e) {
     (void)e;
     AppEvent ev{};
     ev.type = AppEventType::PumpTest;
-    g_ctx->bus->publish(ev, 0);
+    s_manualCtx->bus->publish(ev, 0);
 }
 
 void build_manual_tab(lv_obj_t *parent, UiContext *ctx) {
-    g_ctx = ctx;
+    s_manualCtx = ctx;
     lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
 
