@@ -25,19 +25,19 @@ void refresh_manual(UiContext *ctx);
 void build_settings_tab(lv_obj_t *parent, UiContext *ctx);
 void refresh_settings(UiContext *ctx);
 
-static const char *dict[][5] = {
-    {"HOME", "Home", "Inicio", "Glavnaya", "Glkhavor"},
-    {"ZONES", "Zones", "Zonas", "Zony", "Gotiner"},
-    {"SETTINGS", "Settings", "Ajustes", "Nastroyki", "Kargavorumner"},
-    {"RESCAN", "Rescan modules", "Escanear módulos", "Pereskan moduley", "Veraskan modulnery"},
-    {"WIFI_SAVE", "Save Wi-Fi", "Guardar Wi-Fi", "Sohranit Wi-Fi", "Pahel Wi‑Fi"},
-    {"WIFI_SSID", "Wi-Fi SSID", "SSID Wi-Fi", "SSID Wi-Fi", "Wi‑Fi SSID"},
-    {"WIFI_PASS", "Wi-Fi Password", "Contraseña Wi-Fi", "Parol Wi-Fi", "Wi‑Fi gaxtnabar"},
-    {"CONNECTED", "Connected", "Conectado", "Podklyucheno", "Miatsvats"},
-    {"AP_MODE", "AP mode", "Modo AP", "Rezhim AP", "AP rezhim"},
-    {"OFFLINE", "Offline", "Sin conexión", "Offline", "Ancanc"},
-    {"CH_UPDATED", "Channel updated", "Canal actualizado", "Kanal obnovlen", "Aliqy trmatsvats e"},
-    {"SAVED", "Saved", "Guardado", "Sohraneno", "Pahvats"},
+static const char *dict[][3] = {
+    {"HOME", "Home", "Inicio"},
+    {"ZONES", "Zones", "Zonas"},
+    {"SETTINGS", "Settings", "Ajustes"},
+    {"RESCAN", "Rescan modules", "Escanear módulos"},
+    {"WIFI_SAVE", "Save Wi-Fi", "Guardar Wi-Fi"},
+    {"WIFI_SSID", "Wi-Fi SSID", "SSID Wi-Fi"},
+    {"WIFI_PASS", "Wi-Fi Password", "Contraseña Wi-Fi"},
+    {"CONNECTED", "Connected", "Conectado"},
+    {"AP_MODE", "AP mode", "Modo AP"},
+    {"OFFLINE", "Offline", "Sin conexión"},
+    {"CH_UPDATED", "Channel updated", "Canal actualizado"},
+    {"SAVED", "Saved", "Guardado"},
 };
 
 const char *tr(app::Lang lang, const char *key) {

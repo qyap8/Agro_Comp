@@ -22,7 +22,7 @@ input,select{padding:8px;border-radius:8px;border:1px solid #cfd8e3;margin:4px 0
 <input id='ssid' placeholder='SSID'><input id='pass' placeholder='Password' type='password'>
 <button onclick='saveWifi()'>Save Wi-Fi</button>
 <select id='lang' onchange='setLang()'>
-<option value='0'>English</option><option value='1'>Español</option><option value='2'>Русский</option><option value='3'>Հայերեն</option>
+<option value='0'>English</option><option value='1'>Español</option>
 </select>
 <button onclick='rescan()'>Rescan</button>
 </div>
@@ -183,7 +183,7 @@ void LogicController::startWebServer() {
         if (!extractInt(web_.arg("plain"), "lang", lang)) return web_.send(400, "application/json", "{\"ok\":false}");
         AppEvent ev{};
         ev.type = AppEventType::SetLanguage;
-        ev.language = static_cast<Lang>(constrain(lang, 0, 3));
+        ev.language = static_cast<Lang>(constrain(lang, 0, 1));
         bus_->publish(ev, 0);
         web_.send(200, "application/json", "{\"ok\":true}");
     });

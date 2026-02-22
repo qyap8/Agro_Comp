@@ -75,7 +75,7 @@ void build_settings_tab(lv_obj_t *parent, UiContext *ctx) {
     lv_obj_center(s_wifiOpenLbl);
 
     s_langDd = lv_dropdown_create(parent);
-    lv_dropdown_set_options(s_langDd, "English\nEspañol\nРусский\nՀայերեն");
+    lv_dropdown_set_options(s_langDd, "English\nEspañol");
     lv_obj_set_width(s_langDd, LV_PCT(100));
     lv_obj_add_event_cb(s_langDd, lang_cb, LV_EVENT_VALUE_CHANGED, nullptr);
 

@@ -31,16 +31,14 @@
 - поле ввода прокручивается в видимую область,
 - скрывается по Ready/Cancel/Defocus.
 
-## Шрифты Español / Русский / Հայերեն
+## Шрифты Español
 
 В код добавлен безопасный хук для кастомного мульти-языкового шрифта:
 - если существует `ui/fonts/lv_font_multilang_18.h`, шрифт будет применён автоматически.
 - если файла нет, используется fallback (текущие системные шрифты).
 
 Рекомендуется сгенерировать файл шрифта через LVGL Font Converter с диапазонами:
-- Latin + Latin-1 Supplement,
-- Cyrillic,
-- Armenian.
+- Latin + Latin-1 Supplement.
 
 И положить его в:
 - `IrrigationHMI/ui/fonts/lv_font_multilang_18.h`

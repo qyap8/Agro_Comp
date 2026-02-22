@@ -11,7 +11,7 @@ namespace app {
 
 enum class SystemMode : uint8_t { Idle, Online, Error };
 
-enum class Lang : uint8_t { EN = 0, ES = 1, RU = 2, HY = 3 };
+enum class Lang : uint8_t { EN = 0, ES = 1 };
 
 struct ChannelInfo {
     uint8_t id = 0;
