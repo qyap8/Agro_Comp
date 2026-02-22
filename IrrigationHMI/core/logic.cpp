@@ -85,7 +85,9 @@ void LogicController::loadSettings() {
     state_->settings.wifiSsid = prefs_.getString("wifi_ssid", "");
     state_->settings.wifiPass = prefs_.getString("wifi_pass", "");
     state_->settings.language = static_cast<Lang>(prefs_.getUChar("lang", 0));
+    #ifdef APP_HAS_SCREEN_TIMEOUT_SETTING
     state_->settings.screenTimeoutSec = prefs_.getUShort("scr_to", 60);
+    #endif
 }
 
 void LogicController::saveWifiCreds(const char *ssid, const char *pass) {
@@ -192,7 +194,13 @@ String LogicController::buildStateJson() {
                  ",\"apMode\":" + String(state_->wifi.apMode ? "true" : "false") +
                  ",\"ssid\":\"" + state_->wifi.ssid + "\",\"ip\":\"" + state_->wifi.ip.toString() + "\"}," +
                  "\"language\":" + String(static_cast<uint8_t>(state_->settings.language)) +
-                 ",\"screenTimeoutSec\":" + String(state_->settings.screenTimeoutSec) + ",\"modules\":[";
+                 ",\"screenTimeoutSec\":" + String(
+#ifdef APP_HAS_SCREEN_TIMEOUT_SETTING
+                 state_->settings.screenTimeoutSec
+#else
+                 60
+#endif
+                 ) + ",\"modules\":[";
     for (size_t i = 0; i < state_->modules.size(); ++i) {
         const auto &m = state_->modules[i];
         out += "{\"addr\":" + String(m.address) + ",\"uid\":" + String((unsigned long)m.uid) + ",\"channels\":[";
@@ -284,8 +292,12 @@ void LogicController::handleEvent(const AppEvent &event) {
             applyLanguage(event.language);
             break;
         case AppEventType::SetScreenTimeout:
+            #ifdef APP_HAS_SCREEN_TIMEOUT_SETTING
             state_->settings.screenTimeoutSec = event.value16;
             prefs_.putUShort("scr_to", state_->settings.screenTimeoutSec);
+            #else
+            prefs_.putUShort("scr_to", event.value16);
+            #endif
             break;
         default:
             break;

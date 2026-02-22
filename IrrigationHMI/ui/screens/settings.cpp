@@ -152,8 +152,14 @@ void refresh_settings(UiContext *ctx) {
     lv_textarea_set_placeholder_text(s_wifiSsidTa, tr(ctx->state->settings.language, "WIFI_SSID"));
     lv_textarea_set_placeholder_text(s_wifiPassTa, tr(ctx->state->settings.language, "WIFI_PASS"));
     lv_dropdown_set_selected(s_langDd, static_cast<uint16_t>(ctx->state->settings.language));
-    lv_dropdown_set_selected(s_timeoutDd, idx_from_timeout(ctx->state->settings.screenTimeoutSec));
-    lv_label_set_text_fmt(s_timeoutLbl, "%s: %us", "Screen timeout", ctx->state->settings.screenTimeoutSec);
+    uint16_t timeoutSec =
+#ifdef APP_HAS_SCREEN_TIMEOUT_SETTING
+        ctx->state->settings.screenTimeoutSec;
+#else
+        60;
+#endif
+    lv_dropdown_set_selected(s_timeoutDd, idx_from_timeout(timeoutSec));
+    lv_label_set_text_fmt(s_timeoutLbl, "%s: %us", "Screen timeout", timeoutSec);
 
     xSemaphoreGive(ctx->stateMutex);
 }

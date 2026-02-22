@@ -158,7 +158,13 @@ void ui_refresh() {
     refresh_settings(g_ctx);
 
     ensure_sleep_overlay();
-    uint32_t toMs = static_cast<uint32_t>(g_ctx->state->settings.screenTimeoutSec) * 1000UL;
+    uint32_t toMs = static_cast<uint32_t>(
+#ifdef APP_HAS_SCREEN_TIMEOUT_SETTING
+        g_ctx->state->settings.screenTimeoutSec
+#else
+        60
+#endif
+    ) * 1000UL;
     if (toMs > 0) {
         uint32_t inactive = lv_disp_get_inactive_time(nullptr);
         if (!g_sleeping && inactive >= toMs) {

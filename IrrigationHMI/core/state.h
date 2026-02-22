@@ -5,6 +5,8 @@
 #include <vector>
 #include "../config.h"
 
+#define APP_HAS_SCREEN_TIMEOUT_SETTING 1
+
 namespace app {
 
 enum class SystemMode : uint8_t { Idle, Online, Error };
