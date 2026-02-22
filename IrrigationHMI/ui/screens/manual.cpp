@@ -14,7 +14,7 @@ struct ChWidget {
 static UiContext *s_zonesCtx;
 static lv_obj_t *s_zoneRoot;
 static std::vector<ChWidget> s_widgets;
-static uint32_t s_topologyHash = 0;
+static uint32_t s_zonesTopologyHash = 0;
 
 static uint32_t topology_hash(const app::SystemState *st) {
     uint32_t h = 2166136261u;
@@ -38,7 +38,7 @@ static void channel_cb(lv_event_t *e) {
 
 void build_manual_tab(lv_obj_t *parent, UiContext *ctx) {
     s_zonesCtx = ctx;
-    s_topologyHash = 0;
+    s_zonesTopologyHash = 0;
     s_widgets.clear();
 
     lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
@@ -56,8 +56,8 @@ void refresh_manual(UiContext *ctx) {
     if (xSemaphoreTake(ctx->stateMutex, pdMS_TO_TICKS(20)) != pdTRUE) return;
 
     uint32_t h = topology_hash(ctx->state);
-    if (h != s_topologyHash) {
-        s_topologyHash = h;
+    if (h != s_zonesTopologyHash) {
+        s_zonesTopologyHash = h;
         s_widgets.clear();
         lv_obj_clean(s_zoneRoot);
 
