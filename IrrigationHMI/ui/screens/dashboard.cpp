@@ -6,7 +6,6 @@ static UiContext *s_homeCtx;
 static lv_obj_t *s_wifi;
 static lv_obj_t *s_status;
 static lv_obj_t *s_timeDay;
-static lv_obj_t *s_weather;
 static lv_obj_t *s_modules;
 static lv_obj_t *s_rescanLbl;
 static uint32_t s_topologyHash = 0;
@@ -47,7 +46,6 @@ void build_dashboard_tab(lv_obj_t *parent, UiContext *ctx) {
     lv_obj_set_width(s_timeDay, LV_PCT(25));
     s_wifi = lv_label_create(header);
 
-    s_weather = lv_label_create(parent);
 
     lv_obj_t *rescan = lv_btn_create(parent);
     lv_obj_set_size(rescan, LV_PCT(100), 44);
@@ -78,11 +76,6 @@ void refresh_dashboard(UiContext *ctx) {
 
     lv_label_set_text_fmt(s_timeDay, "%s %s", ctx->state->time.hhmm.c_str(), ctx->state->time.dayName.c_str());
 
-    if (ctx->state->weather.valid) {
-        lv_label_set_text_fmt(s_weather, "%s %s %.1fC", LV_SYMBOL_GPS, ctx->state->weather.summary.c_str(), ctx->state->weather.temperatureC);
-    } else {
-        lv_label_set_text_fmt(s_weather, "%s Weather: n/a", LV_SYMBOL_GPS);
-    }
 
     lv_label_set_text_fmt(s_rescanLbl, "%s %s", LV_SYMBOL_REFRESH, tr(ctx->state->settings.language, "RESCAN"));
 

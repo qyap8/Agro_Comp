@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <HTTPClient.h>
 #include <time.h>
 #include "logic.h"
 #include "../comm/protocol.h"
@@ -7,44 +6,10 @@
 namespace app {
 
 static const char WEB_PAGE[] PROGMEM = R"HTML(
-<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>
-<title>Irrigation HMI</title>
-<style>
-body{font-family:Arial,sans-serif;margin:12px;background:#f3f6fb}
-.card{background:#fff;border-radius:10px;padding:10px;margin:8px 0;box-shadow:0 1px 6px rgba(0,0,0,.08)}
-button{padding:8px 10px;margin:4px;border-radius:8px;border:1px solid #cfd8e3;background:#fff}
-input,select{padding:8px;border-radius:8px;border:1px solid #cfd8e3;margin:4px 0;width:100%}
-.ch.on{background:#d8f8df}
-</style></head><body>
-<h3>Irrigation HMI</h3>
-<div class='card'>
-<div id='wifi'></div>
-<input id='ssid' placeholder='SSID'><input id='pass' placeholder='Password' type='password'>
-<button onclick='saveWifi()'>Save Wi-Fi</button>
-<select id='lang' onchange='setLang()'>
-<option value='0'>English</option><option value='1'>Español</option>
-</select>
-<button onclick='rescan()'>Rescan</button>
-</div>
-<div id='mods'></div>
+<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><title>Irrigation HMI</title></head>
+<body><h3>Irrigation HMI</h3><pre id='s'>loading...</pre>
 <script>
-let cache='';
-async function j(u,m='GET',b){return fetch(u,{method:m,headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined}).then(r=>r.json())}
-async function saveWifi(){await j('/api/wifi','POST',{ssid:ssid.value,pass:pass.value});}
-async function setLang(){await j('/api/lang','POST',{lang:parseInt(lang.value)});}
-async function rescan(){await j('/api/rescan','POST',{});}
-async function setCh(module,channel,state){await j('/api/channel','POST',{module,channel,state});}
-function draw(d){
-  const w=`Wi-Fi: ${d.wifi.connected?'Connected':(d.wifi.apMode?'AP':'Offline')} | ${d.wifi.ssid} | IP ${d.wifi.ip||'-'}`;
-  document.getElementById('wifi').textContent=w;
-  document.getElementById('lang').value=String(d.language||0);
-  const root=document.getElementById('mods'); root.innerHTML='';
-  d.modules.forEach(m=>{const c=document.createElement('div'); c.className='card'; c.innerHTML=`<b>Module ${m.addr}</b>`;
-    m.channels.forEach(ch=>{const b=document.createElement('button'); b.className='ch '+(ch.state?'on':''); b.textContent=`CH ${ch.id+1} ${ch.state?'ON':'OFF'}`;
-      b.onclick=()=>setCh(m.addr,ch.id,!ch.state); c.appendChild(b);}); root.appendChild(c);});
-}
-async function loop(){const d=await j('/api/state'); const s=JSON.stringify(d); if(s!==cache){cache=s; draw(d);} }
-setInterval(loop,700); loop();
+async function r(){const d=await (await fetch('/api/state')).json();document.getElementById('s').textContent=JSON.stringify(d,null,2);} setInterval(r,1200); r();
 </script></body></html>
 )HTML";
 
@@ -205,8 +170,7 @@ String LogicController::buildStateJson() {
 #endif
                  ) +
                  ",\"time\":{\"hhmm\":\"" + state_->time.hhmm + "\",\"day\":\"" + state_->time.dayName + "\"}," +
-                 "\"weather\":{\"valid\":" + String(state_->weather.valid ? "true" : "false") +
-                 ",\"summary\":\"" + state_->weather.summary + "\",\"temp\":" + String(state_->weather.temperatureC, 1) + "}," +
+                 "\"weather\":{\"valid\":false,\"summary\":\"n/a\",\"temp\":0}," +
                  "\"modules\":[";
     for (size_t i = 0; i < state_->modules.size(); ++i) {
         const auto &m = state_->modules[i];
@@ -278,30 +242,6 @@ void LogicController::updateClock() {
     }
 }
 
-void LogicController::updateWeather() {
-    if (!state_->wifi.connected) return;
-    if (millis() - lastWeatherMs_ < 30UL * 60UL * 1000UL) return;
-    lastWeatherMs_ = millis();
-
-    HTTPClient http;
-    http.begin("https://api.open-meteo.com/v1/forecast?latitude=40.1792&longitude=44.4991&current=temperature_2m,weather_code");
-    int code = http.GET();
-    if (code != 200) { http.end(); return; }
-    String b = http.getString();
-    http.end();
-
-    int tp = b.indexOf("\"temperature_2m\":");
-    int wc = b.indexOf("\"weather_code\":");
-    if (tp < 0 || wc < 0) return;
-    float temp = b.substring(tp + 17).toFloat();
-    int w = b.substring(wc + 15).toInt();
-
-    state_->weather.temperatureC = temp;
-    state_->weather.valid = true;
-    state_->weather.updatedAtMs = millis();
-    state_->weather.summary = (w < 3) ? "Clear" : (w < 50 ? "Cloudy" : (w < 70 ? "Rain" : "Other"));
-}
-
 void LogicController::handleEvent(const AppEvent &event) {
     switch (event.type) {
         case AppEventType::DiscoverModules:
@@ -357,7 +297,6 @@ void LogicController::tick() {
     state_->comm = transport_->stats();
     handleWebServer();
     updateClock();
-    updateWeather();
     if (millis() - lastDiscoverMs_ > 10000) {
         lastDiscoverMs_ = millis();
         discoverModules();

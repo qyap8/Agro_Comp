@@ -29,7 +29,6 @@ private:
     void handleWebServer();
     void applyLanguage(Lang lang);
     void updateClock();
-    void updateWeather();
     String buildStateJson();
 
     SystemState *state_ = nullptr;
@@ -42,7 +41,6 @@ private:
     bool webStarted_ = false;
     uint32_t lastDiscoverMs_ = 0;
     uint32_t lastClockMs_ = 0;
-    uint32_t lastWeatherMs_ = 0;
 };
 
 } // namespace app
