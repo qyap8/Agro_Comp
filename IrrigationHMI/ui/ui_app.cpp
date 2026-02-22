@@ -15,6 +15,8 @@ static lv_obj_t *g_keyboard = nullptr;
 static lv_obj_t *g_keyboardHost = nullptr;
 static uint32_t g_toastTs = 0;
 static app::Lang g_lastLang = app::Lang::EN;
+static lv_obj_t *g_sleepOverlay = nullptr;
+static bool g_sleeping = false;
 
 void build_dashboard_tab(lv_obj_t *parent, UiContext *ctx);
 void refresh_dashboard(UiContext *ctx);
@@ -51,6 +53,27 @@ static void keyboard_event_cb(lv_event_t *e) {
     if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL || code == LV_EVENT_DEFOCUSED) {
         ui_keyboard_hide();
     }
+}
+
+
+static void wake_cb(lv_event_t *e) {
+    (void)e;
+    if (!g_sleepOverlay) return;
+    g_sleeping = false;
+    lv_obj_add_flag(g_sleepOverlay, LV_OBJ_FLAG_HIDDEN);
+    lv_disp_trig_activity(nullptr);
+}
+
+static void ensure_sleep_overlay() {
+    if (g_sleepOverlay) return;
+    g_sleepOverlay = lv_obj_create(lv_scr_act());
+    lv_obj_set_size(g_sleepOverlay, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_bg_color(g_sleepOverlay, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(g_sleepOverlay, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(g_sleepOverlay, 0, 0);
+    lv_obj_set_scrollbar_mode(g_sleepOverlay, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_add_event_cb(g_sleepOverlay, wake_cb, LV_EVENT_PRESSED, nullptr);
+    lv_obj_add_flag(g_sleepOverlay, LV_OBJ_FLAG_HIDDEN);
 }
 
 void ui_keyboard_hide() {
@@ -113,6 +136,10 @@ static void rebuild_ui_for_language() {
     lv_obj_add_flag(g_keyboard, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_event_cb(g_keyboard, keyboard_event_cb, LV_EVENT_ALL, nullptr);
 
+    g_sleepOverlay = nullptr;
+    g_sleeping = false;
+    ensure_sleep_overlay();
+
     g_lastLang = g_ctx->state->settings.language;
 }
 
@@ -129,6 +156,17 @@ void ui_refresh() {
     refresh_dashboard(g_ctx);
     refresh_manual(g_ctx);
     refresh_settings(g_ctx);
+
+    ensure_sleep_overlay();
+    uint32_t toMs = static_cast<uint32_t>(g_ctx->state->settings.screenTimeoutSec) * 1000UL;
+    if (toMs > 0) {
+        uint32_t inactive = lv_disp_get_inactive_time(nullptr);
+        if (!g_sleeping && inactive >= toMs) {
+            g_sleeping = true;
+            lv_obj_move_foreground(g_sleepOverlay);
+            lv_obj_clear_flag(g_sleepOverlay, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
 
     if (g_toast && !lv_obj_has_flag(g_toast, LV_OBJ_FLAG_HIDDEN) && millis() - g_toastTs > 1400) {
         lv_obj_add_flag(g_toast, LV_OBJ_FLAG_HIDDEN);

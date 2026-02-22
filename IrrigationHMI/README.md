@@ -45,3 +45,17 @@
 И положить его в:
 - `IrrigationHMI/ui/fonts/lv_font_multilang_18.h`
 - `IrrigationHMI/ui/fonts/lv_font_multilang_18.c`
+
+
+## Таймаут отключения экрана
+
+Добавлена настройка `Screen timeout` в Settings:
+- Off
+- 30 sec
+- 60 sec
+- 120 sec
+- 300 sec
+
+Логика:
+- при неактивности дольше таймаута экран гасится (чёрный overlay),
+- при касании тачскрина экран сразу просыпается.

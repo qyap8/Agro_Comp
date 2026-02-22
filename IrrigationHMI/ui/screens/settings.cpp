@@ -6,6 +6,8 @@ static UiContext *s_settingsCtx;
 static lv_obj_t *s_wifiStat;
 static lv_obj_t *s_ipStat;
 static lv_obj_t *s_langDd;
+static lv_obj_t *s_timeoutDd;
+static lv_obj_t *s_timeoutLbl;
 
 static lv_obj_t *s_wifiModal;
 static lv_obj_t *s_wifiSsidTa;
@@ -37,6 +39,17 @@ static void wifi_open_cb(lv_event_t *e) {
     lv_obj_clear_flag(s_wifiModal, LV_OBJ_FLAG_HIDDEN);
 }
 
+
+static uint16_t timeout_from_idx(uint16_t idx){ const uint16_t v[]={0,30,60,120,300}; return v[idx<5?idx:2]; }
+static uint16_t idx_from_timeout(uint16_t sec){ if(sec==0) return 0; if(sec<=30) return 1; if(sec<=60) return 2; if(sec<=120) return 3; return 4; }
+
+static void timeout_cb(lv_event_t *e) {
+    (void)e;
+    AppEvent ev{};
+    ev.type = AppEventType::SetScreenTimeout;
+    ev.value16 = timeout_from_idx(lv_dropdown_get_selected(s_timeoutDd));
+    s_settingsCtx->bus->publish(ev, 0);
+}
 static void lang_cb(lv_event_t *e) {
     (void)e;
     AppEvent ev{};
@@ -65,6 +78,14 @@ void build_settings_tab(lv_obj_t *parent, UiContext *ctx) {
     lv_dropdown_set_options(s_langDd, "English\nEspañol\nРусский\nՀայերեն");
     lv_obj_set_width(s_langDd, LV_PCT(100));
     lv_obj_add_event_cb(s_langDd, lang_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+
+    s_timeoutLbl = lv_label_create(parent);
+    lv_label_set_text(s_timeoutLbl, "Screen timeout");
+
+    s_timeoutDd = lv_dropdown_create(parent);
+    lv_dropdown_set_options(s_timeoutDd, "Off\n30 sec\n60 sec\n120 sec\n300 sec");
+    lv_obj_set_width(s_timeoutDd, LV_PCT(100));
+    lv_obj_add_event_cb(s_timeoutDd, timeout_cb, LV_EVENT_VALUE_CHANGED, nullptr);
 
     s_wifiModal = lv_obj_create(lv_scr_act());
     lv_obj_set_size(s_wifiModal, LV_PCT(90), LV_PCT(68));
@@ -131,6 +152,8 @@ void refresh_settings(UiContext *ctx) {
     lv_textarea_set_placeholder_text(s_wifiSsidTa, tr(ctx->state->settings.language, "WIFI_SSID"));
     lv_textarea_set_placeholder_text(s_wifiPassTa, tr(ctx->state->settings.language, "WIFI_PASS"));
     lv_dropdown_set_selected(s_langDd, static_cast<uint16_t>(ctx->state->settings.language));
+    lv_dropdown_set_selected(s_timeoutDd, idx_from_timeout(ctx->state->settings.screenTimeoutSec));
+    lv_label_set_text_fmt(s_timeoutLbl, "%s: %us", "Screen timeout", ctx->state->settings.screenTimeoutSec);
 
     xSemaphoreGive(ctx->stateMutex);
 }

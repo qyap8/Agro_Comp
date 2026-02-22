@@ -45,6 +45,7 @@ struct Settings {
     Lang language = Lang::EN;
     String wifiSsid;
     String wifiPass;
+    uint16_t screenTimeoutSec = 60; // 0 = never sleep
 };
 
 struct EventRecord {

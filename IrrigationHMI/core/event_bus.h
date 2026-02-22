@@ -11,6 +11,7 @@ enum class AppEventType : uint8_t {
     WifiStartAp,
     WifiSaveCreds,
     SetLanguage,
+    SetScreenTimeout,
 };
 
 struct AppEvent {
