@@ -5,6 +5,8 @@ namespace ui {
 static UiContext *s_homeCtx;
 static lv_obj_t *s_wifi;
 static lv_obj_t *s_status;
+static lv_obj_t *s_timeDay;
+static lv_obj_t *s_weather;
 static lv_obj_t *s_modules;
 static lv_obj_t *s_rescanLbl;
 static uint32_t s_topologyHash = 0;
@@ -40,8 +42,12 @@ void build_dashboard_tab(lv_obj_t *parent, UiContext *ctx) {
     lv_obj_set_flex_flow(header, LV_FLEX_FLOW_ROW);
 
     s_status = lv_label_create(header);
-    lv_obj_set_width(s_status, LV_PCT(80));
+    lv_obj_set_width(s_status, LV_PCT(55));
+    s_timeDay = lv_label_create(header);
+    lv_obj_set_width(s_timeDay, LV_PCT(25));
     s_wifi = lv_label_create(header);
+
+    s_weather = lv_label_create(parent);
 
     lv_obj_t *rescan = lv_btn_create(parent);
     lv_obj_set_size(rescan, LV_PCT(100), 44);
@@ -67,9 +73,16 @@ void refresh_dashboard(UiContext *ctx) {
                           (unsigned long)ctx->state->comm.txFrames,
                           (unsigned long)ctx->state->comm.rxFrames);
 
-    lv_label_set_text_fmt(s_wifi, "%s %s",
-                          ctx->state->wifi.connected ? LV_SYMBOL_WIFI : LV_SYMBOL_WARNING,
-                          ctx->state->wifi.ip.toString().c_str());
+    lv_label_set_text_fmt(s_wifi, "%s",
+                          ctx->state->wifi.connected ? LV_SYMBOL_WIFI : LV_SYMBOL_WARNING);
+
+    lv_label_set_text_fmt(s_timeDay, "%s %s", ctx->state->time.hhmm.c_str(), ctx->state->time.dayName.c_str());
+
+    if (ctx->state->weather.valid) {
+        lv_label_set_text_fmt(s_weather, "%s %s %.1fC", LV_SYMBOL_GPS, ctx->state->weather.summary.c_str(), ctx->state->weather.temperatureC);
+    } else {
+        lv_label_set_text_fmt(s_weather, "%s Weather: n/a", LV_SYMBOL_GPS);
+    }
 
     lv_label_set_text_fmt(s_rescanLbl, "%s %s", LV_SYMBOL_REFRESH, tr(ctx->state->settings.language, "RESCAN"));
 

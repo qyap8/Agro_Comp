@@ -1,4 +1,6 @@
 #include <algorithm>
+#include <HTTPClient.h>
+#include <time.h>
 #include "logic.h"
 #include "../comm/protocol.h"
 
@@ -111,6 +113,7 @@ void LogicController::wifiAutoConnect() {
         state_->wifi.apMode = false;
         state_->wifi.ssid = WiFi.SSID();
         state_->wifi.ip = WiFi.localIP();
+        configTime(0, 0, "pool.ntp.org", "time.google.com");
         addEvent(*state_, "WiFi connected");
     } else {
         startApMode();
@@ -200,7 +203,11 @@ String LogicController::buildStateJson() {
 #else
                  60
 #endif
-                 ) + ",\"modules\":[";
+                 ) +
+                 ",\"time\":{\"hhmm\":\"" + state_->time.hhmm + "\",\"day\":\"" + state_->time.dayName + "\"}," +
+                 "\"weather\":{\"valid\":" + String(state_->weather.valid ? "true" : "false") +
+                 ",\"summary\":\"" + state_->weather.summary + "\",\"temp\":" + String(state_->weather.temperatureC, 1) + "}," +
+                 "\"modules\":[";
     for (size_t i = 0; i < state_->modules.size(); ++i) {
         const auto &m = state_->modules[i];
         out += "{\"addr\":" + String(m.address) + ",\"uid\":" + String((unsigned long)m.uid) + ",\"channels\":[";
@@ -257,6 +264,44 @@ void LogicController::applyLanguage(Lang lang) {
     prefs_.putUChar("lang", static_cast<uint8_t>(lang));
 }
 
+
+void LogicController::updateClock() {
+    if (millis() - lastClockMs_ < 1000) return;
+    lastClockMs_ = millis();
+
+    struct tm t;
+    if (getLocalTime(&t, 50)) {
+        static const char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+        state_->time.hhmm = String(t.tm_hour < 10 ? "0" : "") + String(t.tm_hour) + ":" + String(t.tm_min < 10 ? "0" : "") + String(t.tm_min);
+        state_->time.dayName = days[t.tm_wday];
+        state_->time.synced = true;
+    }
+}
+
+void LogicController::updateWeather() {
+    if (!state_->wifi.connected) return;
+    if (millis() - lastWeatherMs_ < 30UL * 60UL * 1000UL) return;
+    lastWeatherMs_ = millis();
+
+    HTTPClient http;
+    http.begin("https://api.open-meteo.com/v1/forecast?latitude=40.1792&longitude=44.4991&current=temperature_2m,weather_code");
+    int code = http.GET();
+    if (code != 200) { http.end(); return; }
+    String b = http.getString();
+    http.end();
+
+    int tp = b.indexOf("\"temperature_2m\":");
+    int wc = b.indexOf("\"weather_code\":");
+    if (tp < 0 || wc < 0) return;
+    float temp = b.substring(tp + 17).toFloat();
+    int w = b.substring(wc + 15).toInt();
+
+    state_->weather.temperatureC = temp;
+    state_->weather.valid = true;
+    state_->weather.updatedAtMs = millis();
+    state_->weather.summary = (w < 3) ? "Clear" : (w < 50 ? "Cloudy" : (w < 70 ? "Rain" : "Other"));
+}
+
 void LogicController::handleEvent(const AppEvent &event) {
     switch (event.type) {
         case AppEventType::DiscoverModules:
@@ -311,6 +356,8 @@ void LogicController::handleWebServer() {
 void LogicController::tick() {
     state_->comm = transport_->stats();
     handleWebServer();
+    updateClock();
+    updateWeather();
     if (millis() - lastDiscoverMs_ > 10000) {
         lastDiscoverMs_ = millis();
         discoverModules();

@@ -42,6 +42,20 @@ struct WifiState {
     IPAddress ip;
 };
 
+
+struct TimeState {
+    String hhmm = "--:--";
+    String dayName = "---";
+    bool synced = false;
+};
+
+struct WeatherState {
+    bool valid = false;
+    String summary = "N/A";
+    float temperatureC = NAN;
+    uint32_t updatedAtMs = 0;
+};
+
 struct Settings {
     uint32_t rs485Baud = APP_RS485_BAUD_DEFAULT;
     Lang language = Lang::EN;
@@ -61,6 +75,8 @@ struct SystemState {
     CommStats comm;
     WifiState wifi;
     Settings settings;
+    TimeState time;
+    WeatherState weather;
     std::array<EventRecord, APP_EVENT_LOG_CAPACITY> eventLog{};
     uint16_t eventHead = 0;
     uint16_t eventCount = 0;
