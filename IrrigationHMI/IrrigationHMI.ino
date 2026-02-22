@@ -58,6 +58,7 @@ void setup() {
 
     g_uiCtx.state = &g_state;
     g_uiCtx.bus = &g_bus;
+    g_uiCtx.stateMutex = g_logic.stateMutex();
 
     // Любые изменения LVGL делаем под lock/unlock.
     lvgl_port_lock(0);

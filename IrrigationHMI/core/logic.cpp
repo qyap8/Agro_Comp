@@ -4,190 +4,267 @@
 
 namespace app {
 
+static const char WEB_PAGE[] PROGMEM = R"HTML(
+<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>Irrigation HMI</title></head><body><h2>Irrigation HMI</h2><pre id='s'>loading...</pre>
+<script>
+async function r(){let d=await (await fetch('/api/state')).json();document.getElementById('s').textContent=JSON.stringify(d,null,2);} setInterval(r,1000); r();
+</script></body></html>
+)HTML";
+
 bool LogicController::begin(SystemState *state, EventBus *bus, RS485Transport *transport) {
     state_ = state;
     bus_ = bus;
     transport_ = transport;
+    stateMutex_ = xSemaphoreCreateMutex();
 
     prefs_.begin("irrig", false);
-    state_->settings.pulseWidthMs = prefs_.getUShort("pulse", APP_DEFAULT_PULSE_WIDTH_MS);
-    state_->settings.closeAllOnBoot = prefs_.getBool("close_boot", true);
-    loadSchedules();
+    loadSettings();
+    wifiAutoConnect();
+    startWebServer();
 
-    state_->pumpRelay = false;
-    state_->pumpDc = false;
-    addEvent(*state_, "Boot: pumps OFF");
-
-    if (state_->settings.closeAllOnBoot) {
-        enqueueCloseAll();
-        addEvent(*state_, "Boot: queued sequential close for all zones");
-    }
-
+    addEvent(*state_, "Boot: HMI master started");
+    discoverModules();
     return true;
 }
 
-void LogicController::enqueueCloseAll() {
-    for (uint8_t i = 0; i < APP_MAX_ZONES; ++i) {
-        valveQueue_.push_back({i, false});
-    }
+void LogicController::loadSettings() {
+    state_->settings.wifiSsid = prefs_.getString("wifi_ssid", "");
+    state_->settings.wifiPass = prefs_.getString("wifi_pass", "");
+    state_->settings.language = static_cast<Lang>(prefs_.getUChar("lang", 0));
 }
 
-void LogicController::tick() {
-    processValveQueue();
-    state_->comm = transport_->stats();
+void LogicController::saveWifiCreds(const char *ssid, const char *pass) {
+    prefs_.putString("wifi_ssid", ssid);
+    prefs_.putString("wifi_pass", pass);
+    state_->settings.wifiSsid = ssid;
+    state_->settings.wifiPass = pass;
 }
 
-void LogicController::processValveQueue() {
-    if (valveQueue_.empty()) {
-        return;
-    }
-    if ((millis() - lastValveCommandMs_) < state_->settings.pulseWidthMs) {
-        return;
-    }
-
-    ValveCommand cmd = valveQueue_.front();
-    valveQueue_.pop_front();
-    setZone(cmd.zone, cmd.open);
-    lastValveCommandMs_ = millis();
-}
-
-void LogicController::setZone(uint8_t zone, bool open) {
-    if (zone >= APP_MAX_ZONES) {
-        return;
-    }
-
-    uint8_t payload[2] = {zone, static_cast<uint8_t>(open ? 1 : 0)};
-    auto frame = protocol::buildFrame(1, 0x10, payload, sizeof(payload));
-    transport_->sendFrame(frame);
-
-    state_->zones[zone] = open;
-
-    bool anyZoneOn = false;
-    for (bool z : state_->zones) {
-        if (z) {
-            anyZoneOn = true;
-            break;
+void LogicController::wifiAutoConnect() {
+    WiFi.mode(WIFI_STA);
+    if (state_->settings.wifiSsid.length()) {
+        WiFi.begin(state_->settings.wifiSsid.c_str(), state_->settings.wifiPass.c_str());
+        uint32_t start = millis();
+        while (millis() - start < 8000 && WiFi.status() != WL_CONNECTED) {
+            vTaskDelay(pdMS_TO_TICKS(200));
         }
     }
+    if (WiFi.status() == WL_CONNECTED) {
+        state_->wifi.connected = true;
+        state_->wifi.apMode = false;
+        state_->wifi.ssid = WiFi.SSID();
+        state_->wifi.ip = WiFi.localIP();
+        addEvent(*state_, "WiFi connected");
+    } else {
+        startApMode();
+    }
+}
 
-    state_->pumpRelay = anyZoneOn;
-    state_->pumpDc = anyZoneOn;
-    state_->mode = anyZoneOn ? SystemMode::Watering : SystemMode::Idle;
+void LogicController::startApMode() {
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP("Irrigation-HMI-Setup");
+    state_->wifi.connected = false;
+    state_->wifi.apMode = true;
+    state_->wifi.ssid = "Irrigation-HMI-Setup";
+    state_->wifi.ip = WiFi.softAPIP();
+    addEvent(*state_, "WiFi AP mode started");
+}
 
-    addEvent(*state_, String("Zone ") + String(zone + 1) + (open ? " OPEN" : " CLOSE"));
+void LogicController::startWebServer() {
+    if (webStarted_) return;
+
+    web_.on("/", HTTP_GET, [&]() { web_.send_P(200, "text/html", WEB_PAGE); });
+    web_.on("/api/state", HTTP_GET, [&]() { web_.send(200, "application/json", buildStateJson()); });
+
+    web_.on("/api/channel", HTTP_POST, [&]() {
+        if (!web_.hasArg("plain")) {
+            web_.send(400, "application/json", "{\"ok\":false}");
+            return;
+        }
+        String b = web_.arg("plain");
+        int m = b.indexOf("\"module\":");
+        int c = b.indexOf("\"channel\":");
+        int s = b.indexOf("\"state\":");
+        if (m < 0 || c < 0 || s < 0) {
+            web_.send(400, "application/json", "{\"ok\":false}");
+            return;
+        }
+        AppEvent ev{};
+        ev.type = AppEventType::SetChannelState;
+        ev.moduleAddr = b.substring(m + 9).toInt();
+        ev.channelId = b.substring(c + 10).toInt();
+        ev.valueBool = b.substring(s + 8).startsWith("true") || b.substring(s + 8).toInt() == 1;
+        bus_->publish(ev, 0);
+        web_.send(200, "application/json", "{\"ok\":true}");
+    });
+
+    web_.on("/api/rescan", HTTP_POST, [&]() {
+        AppEvent ev{};
+        ev.type = AppEventType::ModuleRescan;
+        bus_->publish(ev, 0);
+        web_.send(200, "application/json", "{\"ok\":true}");
+    });
+
+    web_.on("/api/wifi", HTTP_POST, [&]() {
+        if (!web_.hasArg("plain")) {
+            web_.send(400, "application/json", "{\"ok\":false}");
+            return;
+        }
+        String b = web_.arg("plain");
+        int s = b.indexOf("\"ssid\":\"");
+        int p = b.indexOf("\"pass\":\"");
+        if (s < 0 || p < 0) {
+            web_.send(400, "application/json", "{\"ok\":false}");
+            return;
+        }
+        String ssid = b.substring(s + 8);
+        ssid = ssid.substring(0, ssid.indexOf('"'));
+        String pass = b.substring(p + 8);
+        pass = pass.substring(0, pass.indexOf('"'));
+
+        AppEvent ev{};
+        ev.type = AppEventType::WifiSaveCreds;
+        strlcpy(ev.ssid, ssid.c_str(), sizeof(ev.ssid));
+        strlcpy(ev.pass, pass.c_str(), sizeof(ev.pass));
+        bus_->publish(ev, 0);
+        web_.send(200, "application/json", "{\"ok\":true}");
+    });
+
+    web_.begin();
+    webStarted_ = true;
+}
+
+String LogicController::buildStateJson() {
+    String out = "{\"wifi\":{\"connected\":" + String(state_->wifi.connected ? "true" : "false") +
+                 ",\"apMode\":" + String(state_->wifi.apMode ? "true" : "false") +
+                 ",\"ssid\":\"" + state_->wifi.ssid + "\"},\"modules\":[";
+    for (size_t i = 0; i < state_->modules.size(); ++i) {
+        const auto &m = state_->modules[i];
+        out += "{\"addr\":" + String(m.address) + ",\"uid\":" + String((unsigned long)m.uid) + ",\"channels\":[";
+        for (size_t c = 0; c < m.channels.size(); ++c) {
+            const auto &ch = m.channels[c];
+            out += "{\"id\":" + String(ch.id) + ",\"state\":" + String(ch.state ? "true" : "false") + "}";
+            if (c + 1 < m.channels.size()) out += ",";
+        }
+        out += "]}";
+        if (i + 1 < state_->modules.size()) out += ",";
+    }
+    out += "]}";
+    return out;
+}
+
+void LogicController::sendSetChannelState(uint8_t moduleAddr, uint8_t channelId, bool state) {
+    uint8_t payload[2] = {channelId, static_cast<uint8_t>(state ? 1 : 0)};
+    auto frame = protocol::buildFrame(moduleAddr, 0x20, payload, sizeof(payload));
+    transport_->sendFrame(frame);
+}
+
+void LogicController::discoverModules() {
+    uint8_t payload[1] = {0x01};
+    auto frame = protocol::buildFrame(0xFF, 0x01, payload, sizeof(payload));
+    transport_->sendFrame(frame);
+
+    // Демонстрационное динамическое наполнение (заменяется ответами от реальных модулей).
+    if (xSemaphoreTake(stateMutex_, pdMS_TO_TICKS(50)) == pdTRUE) {
+        if (state_->modules.empty()) {
+            ModuleInfo m1{};
+            m1.uid = 0x1001;
+            m1.address = 1;
+            m1.firmware = "1.2.0";
+            m1.online = true;
+            m1.lastSeenMs = millis();
+            for (uint8_t i = 0; i < 8; ++i) m1.channels.push_back({i, String("CH ") + (i + 1), false});
+            state_->modules.push_back(m1);
+
+            ModuleInfo m2{};
+            m2.uid = 0x1002;
+            m2.address = 2;
+            m2.firmware = "1.1.3";
+            m2.online = true;
+            m2.lastSeenMs = millis();
+            for (uint8_t i = 0; i < 4; ++i) m2.channels.push_back({i, String("CH ") + (i + 1), false});
+            state_->modules.push_back(m2);
+        } else {
+            for (auto &m : state_->modules) m.lastSeenMs = millis();
+        }
+        xSemaphoreGive(stateMutex_);
+    }
+    addEvent(*state_, "Discovery done");
+}
+
+void LogicController::updateModulePresence() {
+    if (xSemaphoreTake(stateMutex_, pdMS_TO_TICKS(20)) != pdTRUE) return;
+    uint32_t now = millis();
+    for (auto &m : state_->modules) {
+        m.online = (now - m.lastSeenMs) < 15000;
+    }
+    state_->modules.erase(std::remove_if(state_->modules.begin(), state_->modules.end(),
+                                         [&](const ModuleInfo &m) { return !m.online; }),
+                          state_->modules.end());
+    xSemaphoreGive(stateMutex_);
+}
+
+void LogicController::applyLanguage(Lang lang) {
+    state_->settings.language = lang;
+    prefs_.putUChar("lang", static_cast<uint8_t>(lang));
 }
 
 void LogicController::handleEvent(const AppEvent &event) {
     switch (event.type) {
-        case AppEventType::ZoneToggle: {
-            bool target = !state_->zones[event.zone];
-            valveQueue_.push_back({event.zone, target});
+        case AppEventType::DiscoverModules:
+        case AppEventType::ModuleRescan:
+            discoverModules();
+            break;
+        case AppEventType::SetChannelState: {
+            if (xSemaphoreTake(stateMutex_, pdMS_TO_TICKS(50)) == pdTRUE) {
+                for (auto &m : state_->modules) {
+                    if (m.address == event.moduleAddr) {
+                        for (auto &ch : m.channels) {
+                            if (ch.id == event.channelId) {
+                                ch.state = event.valueBool;
+                                sendSetChannelState(m.address, ch.id, ch.state);
+                                addEvent(*state_, "SET_CHANNEL_STATE sent");
+                                break;
+                            }
+                        }
+                    }
+                }
+                xSemaphoreGive(stateMutex_);
+            }
             break;
         }
-        case AppEventType::StopAll:
-            enqueueCloseAll();
+        case AppEventType::WifiSaveCreds:
+            saveWifiCreds(event.ssid, event.pass);
+            wifiAutoConnect();
             break;
-        case AppEventType::PumpTest:
-            state_->pumpRelay = !state_->pumpRelay;
-            state_->pumpDc = state_->pumpRelay;
-            addEvent(*state_, String("Pump test: ") + (state_->pumpRelay ? "ON" : "OFF"));
+        case AppEventType::WifiConnect:
+            wifiAutoConnect();
             break;
-        case AppEventType::RescanModules:
-            state_->modules.clear();
-            for (uint8_t i = 0; i < 4; ++i) {
-                ModuleInfo m{};
-                m.uid = 0xABC000 + i;
-                m.address = i + 1;
-                m.firmware = "1.0." + String(i);
-                m.online = true;
-                state_->modules.push_back(m);
-            }
-            addEvent(*state_, "Module rescan complete");
+        case AppEventType::WifiStartAp:
+            startApMode();
             break;
-        case AppEventType::AssignModuleAddress:
-            for (auto &m : state_->modules) {
-                if (m.address == event.moduleAddress) {
-                    m.address = event.newAddress;
-                    addEvent(*state_, "Module address reassigned");
-                    break;
-                }
-            }
-            break;
-        case AppEventType::SaveSchedule: {
-            bool updated = false;
-            for (auto &s : state_->schedules) {
-                if (s.id == event.schedule.id) {
-                    s = event.schedule;
-                    updated = true;
-                    break;
-                }
-            }
-            if (!updated && state_->schedules.size() < APP_MAX_SCHEDULES) {
-                state_->schedules.push_back(event.schedule);
-            }
-            saveSchedules();
-            addEvent(*state_, "Schedule saved");
-            break;
-        }
-        case AppEventType::DeleteSchedule:
-            state_->schedules.erase(
-                std::remove_if(state_->schedules.begin(), state_->schedules.end(),
-                               [&](const Schedule &s) { return s.id == event.schedule.id; }),
-                state_->schedules.end());
-            saveSchedules();
-            addEvent(*state_, "Schedule deleted");
-            break;
-        case AppEventType::SetPulseWidth:
-            state_->settings.pulseWidthMs = constrain(event.value16, APP_MIN_PULSE_WIDTH_MS, APP_MAX_PULSE_WIDTH_MS);
-            prefs_.putUShort("pulse", state_->settings.pulseWidthMs);
-            break;
-        case AppEventType::SetCloseAllOnBoot:
-            state_->settings.closeAllOnBoot = event.valueBool;
-            prefs_.putBool("close_boot", state_->settings.closeAllOnBoot);
+        case AppEventType::SetLanguage:
+            applyLanguage(event.language);
             break;
         default:
             break;
     }
 }
 
-void LogicController::saveSchedules() {
-    prefs_.putUChar("sched_cnt", state_->schedules.size());
-    for (uint8_t i = 0; i < state_->schedules.size(); ++i) {
-        const Schedule &s = state_->schedules[i];
-        String key = "sch" + String(i);
-        uint8_t packed[9] = {
-            static_cast<uint8_t>(s.id & 0xFF),
-            static_cast<uint8_t>((s.id >> 8) & 0xFF),
-            s.enabled,
-            s.zone,
-            s.daysMask,
-            s.hour,
-            s.minute,
-            static_cast<uint8_t>(s.durationMin & 0xFF),
-            static_cast<uint8_t>((s.durationMin >> 8) & 0xFF)
-        };
-        prefs_.putBytes(key.c_str(), packed, sizeof(packed));
-    }
+void LogicController::handleWebServer() {
+    if (webStarted_) web_.handleClient();
 }
 
-void LogicController::loadSchedules() {
-    state_->schedules.clear();
-    uint8_t count = prefs_.getUChar("sched_cnt", 0);
-    for (uint8_t i = 0; i < count && i < APP_MAX_SCHEDULES; ++i) {
-        String key = "sch" + String(i);
-        uint8_t packed[9]{};
-        if (prefs_.getBytes(key.c_str(), packed, sizeof(packed)) == sizeof(packed)) {
-            Schedule s{};
-            s.id = packed[0] | (static_cast<uint16_t>(packed[1]) << 8);
-            s.enabled = packed[2];
-            s.zone = packed[3];
-            s.daysMask = packed[4];
-            s.hour = packed[5];
-            s.minute = packed[6];
-            s.durationMin = packed[7] | (static_cast<uint16_t>(packed[8]) << 8);
-            state_->schedules.push_back(s);
-        }
+void LogicController::tick() {
+    state_->comm = transport_->stats();
+    handleWebServer();
+
+    if (millis() - lastDiscoverMs_ > 10000) {
+        lastDiscoverMs_ = millis();
+        discoverModules();
     }
+    updateModulePresence();
 }
 
 } // namespace app

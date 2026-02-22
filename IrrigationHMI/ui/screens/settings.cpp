@@ -1,27 +1,42 @@
 #include "../ui_app.h"
-#include "../../config.h"
 
 namespace ui {
 
 static UiContext *s_settingsCtx;
-static lv_obj_t *pulseSlider;
-static lv_obj_t *closeSwitch;
-static lv_obj_t *pulseLabel;
+static lv_obj_t *s_wifiStat;
+static lv_obj_t *s_ssidTa;
+static lv_obj_t *s_passTa;
+static lv_obj_t *s_kb;
+static lv_obj_t *s_langDd;
 
-static void pulse_cb(lv_event_t *e) {
-    (void)e;
-    uint16_t v = lv_slider_get_value(pulseSlider);
-    AppEvent ev{};
-    ev.type = AppEventType::SetPulseWidth;
-    ev.value16 = v;
-    s_settingsCtx->bus->publish(ev, 0);
+static void kb_event(lv_event_t *e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
+        lv_obj_add_flag(s_kb, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
-static void close_boot_cb(lv_event_t *e) {
+static void ta_focus_cb(lv_event_t *e) {
+    lv_obj_t *ta = lv_event_get_target(e);
+    lv_keyboard_set_textarea(s_kb, ta);
+    lv_obj_clear_flag(s_kb, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void wifi_save_cb(lv_event_t *e) {
     (void)e;
     AppEvent ev{};
-    ev.type = AppEventType::SetCloseAllOnBoot;
-    ev.valueBool = lv_obj_has_state(closeSwitch, LV_STATE_CHECKED);
+    ev.type = AppEventType::WifiSaveCreds;
+    strlcpy(ev.ssid, lv_textarea_get_text(s_ssidTa), sizeof(ev.ssid));
+    strlcpy(ev.pass, lv_textarea_get_text(s_passTa), sizeof(ev.pass));
+    s_settingsCtx->bus->publish(ev, 0);
+    ui_toast("Wi-Fi saved");
+}
+
+static void lang_cb(lv_event_t *e) {
+    (void)e;
+    AppEvent ev{};
+    ev.type = AppEventType::SetLanguage;
+    ev.language = static_cast<app::Lang>(lv_dropdown_get_selected(s_langDd));
     s_settingsCtx->bus->publish(ev, 0);
 }
 
@@ -30,40 +45,47 @@ void build_settings_tab(lv_obj_t *parent, UiContext *ctx) {
     lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
 
-    pulseLabel = lv_label_create(parent);
-    pulseSlider = lv_slider_create(parent);
-    lv_obj_set_width(pulseSlider, LV_PCT(100));
-    lv_slider_set_range(pulseSlider, APP_MIN_PULSE_WIDTH_MS, APP_MAX_PULSE_WIDTH_MS);
-    lv_obj_add_event_cb(pulseSlider, pulse_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+    s_wifiStat = lv_label_create(parent);
 
-    lv_obj_t *closeRow = lv_obj_create(parent);
-    lv_obj_set_size(closeRow, LV_PCT(100), 64);
-    lv_obj_set_layout(closeRow, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(closeRow, LV_FLEX_FLOW_ROW);
-    lv_label_create(closeRow);
-    lv_label_set_text(lv_obj_get_child(closeRow, 0), "Close all on boot");
-    closeSwitch = lv_switch_create(closeRow);
-    lv_obj_add_event_cb(closeSwitch, close_boot_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+    s_ssidTa = lv_textarea_create(parent);
+    lv_textarea_set_placeholder_text(s_ssidTa, "Wi-Fi SSID");
+    lv_obj_set_width(s_ssidTa, LV_PCT(100));
+    lv_obj_add_event_cb(s_ssidTa, ta_focus_cb, LV_EVENT_FOCUSED, nullptr);
 
-    lv_label_create(parent);
-    lv_label_set_text(lv_obj_get_child(parent, 3), "Brightness slider (stub)");
-    lv_obj_t *b = lv_slider_create(parent);
-    lv_obj_set_width(b, LV_PCT(100));
+    s_passTa = lv_textarea_create(parent);
+    lv_textarea_set_password_mode(s_passTa, true);
+    lv_textarea_set_placeholder_text(s_passTa, "Wi-Fi Password");
+    lv_obj_set_width(s_passTa, LV_PCT(100));
+    lv_obj_add_event_cb(s_passTa, ta_focus_cb, LV_EVENT_FOCUSED, nullptr);
 
-    lv_label_create(parent);
-    lv_label_set_text(lv_obj_get_child(parent, 5), "Language selector (stub)");
-    lv_dropdown_create(parent);
-    lv_dropdown_set_options(lv_obj_get_child(parent, 6), "English\nSpanish\nPortuguese");
+    lv_obj_t *saveBtn = lv_btn_create(parent);
+    lv_obj_set_size(saveBtn, LV_PCT(100), 56);
+    lv_obj_add_event_cb(saveBtn, wifi_save_cb, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t *sl = lv_label_create(saveBtn);
+    lv_label_set_text(sl, "Save Wi-Fi");
+    lv_obj_center(sl);
+
+    s_langDd = lv_dropdown_create(parent);
+    lv_dropdown_set_options(s_langDd, "English\nEspañol\nРусский\nՀայերեն");
+    lv_obj_set_width(s_langDd, LV_PCT(100));
+    lv_obj_add_event_cb(s_langDd, lang_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+
+    s_kb = lv_keyboard_create(parent);
+    lv_obj_set_size(s_kb, LV_PCT(100), 180);
+    lv_obj_add_flag(s_kb, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_event_cb(s_kb, kb_event, LV_EVENT_ALL, nullptr);
 }
 
 void refresh_settings(UiContext *ctx) {
-    lv_slider_set_value(pulseSlider, ctx->state->settings.pulseWidthMs, LV_ANIM_OFF);
-    lv_label_set_text_fmt(pulseLabel, "Pulse width: %ums", ctx->state->settings.pulseWidthMs);
-    if (ctx->state->settings.closeAllOnBoot) {
-        lv_obj_add_state(closeSwitch, LV_STATE_CHECKED);
-    } else {
-        lv_obj_clear_state(closeSwitch, LV_STATE_CHECKED);
+    if (xSemaphoreTake(ctx->stateMutex, pdMS_TO_TICKS(20)) != pdTRUE) return;
+    lv_label_set_text_fmt(s_wifiStat, "Wi-Fi: %s  %s",
+                          ctx->state->wifi.connected ? "Connected" : (ctx->state->wifi.apMode ? "AP mode" : "Offline"),
+                          ctx->state->wifi.ssid.c_str());
+    if (strlen(lv_textarea_get_text(s_ssidTa)) == 0 && ctx->state->settings.wifiSsid.length()) {
+        lv_textarea_set_text(s_ssidTa, ctx->state->settings.wifiSsid.c_str());
     }
+    lv_dropdown_set_selected(s_langDd, static_cast<uint16_t>(ctx->state->settings.language));
+    xSemaphoreGive(ctx->stateMutex);
 }
 
 } // namespace ui

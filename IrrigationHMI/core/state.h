@@ -1,4 +1,3 @@
-// Описание централизованного состояния системы полива для UI/логики/коммуникации.
 #pragma once
 
 #include <Arduino.h>
@@ -8,10 +7,14 @@
 
 namespace app {
 
-enum class SystemMode : uint8_t {
-    Idle,
-    Watering,
-    Error
+enum class SystemMode : uint8_t { Idle, Online, Error };
+
+enum class Lang : uint8_t { EN = 0, ES = 1, RU = 2, HY = 3 };
+
+struct ChannelInfo {
+    uint8_t id = 0;
+    String name;
+    bool state = false;
 };
 
 struct ModuleInfo {
@@ -19,16 +22,8 @@ struct ModuleInfo {
     uint8_t address = 0;
     String firmware;
     bool online = false;
-};
-
-struct Schedule {
-    uint16_t id = 0;
-    bool enabled = true;
-    uint8_t zone = 0;
-    uint8_t daysMask = 0x7F;
-    uint8_t hour = 6;
-    uint8_t minute = 0;
-    uint16_t durationMin = 10;
+    std::vector<ChannelInfo> channels;
+    uint32_t lastSeenMs = 0;
 };
 
 struct CommStats {
@@ -38,11 +33,18 @@ struct CommStats {
     uint32_t timeouts = 0;
 };
 
+struct WifiState {
+    bool connected = false;
+    bool apMode = false;
+    String ssid;
+    IPAddress ip;
+};
+
 struct Settings {
-    uint16_t pulseWidthMs = APP_DEFAULT_PULSE_WIDTH_MS;
-    bool closeAllOnBoot = true;
-    uint8_t brightness = 100;
-    uint8_t language = 0;
+    uint32_t rs485Baud = APP_RS485_BAUD_DEFAULT;
+    Lang language = Lang::EN;
+    String wifiSsid;
+    String wifiPass;
 };
 
 struct EventRecord {
@@ -52,12 +54,9 @@ struct EventRecord {
 
 struct SystemState {
     SystemMode mode = SystemMode::Idle;
-    std::array<bool, APP_MAX_ZONES> zones{};
-    bool pumpRelay = false;
-    bool pumpDc = false;
     std::vector<ModuleInfo> modules;
-    std::vector<Schedule> schedules;
     CommStats comm;
+    WifiState wifi;
     Settings settings;
     std::array<EventRecord, APP_EVENT_LOG_CAPACITY> eventLog{};
     uint16_t eventHead = 0;

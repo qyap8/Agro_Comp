@@ -2,78 +2,58 @@
 
 namespace ui {
 
-static UiContext *s_manualCtx;
-static lv_obj_t *zoneBtns[APP_MAX_ZONES];
+static UiContext *s_zonesCtx;
+static lv_obj_t *s_zoneRoot;
 
-static void zone_cb(lv_event_t *e) {
-    uint32_t zone = reinterpret_cast<uint32_t>(lv_event_get_user_data(e));
+static void channel_cb(lv_event_t *e) {
+    uint32_t packed = reinterpret_cast<uint32_t>(lv_event_get_user_data(e));
     AppEvent ev{};
-    ev.type = AppEventType::ZoneToggle;
-    ev.zone = static_cast<uint8_t>(zone);
-    s_manualCtx->bus->publish(ev, 0);
-}
-
-static void stop_all_cb(lv_event_t *e) {
-    (void)e;
-    AppEvent ev{};
-    ev.type = AppEventType::StopAll;
-    s_manualCtx->bus->publish(ev, 0);
-}
-
-static void pump_test_cb(lv_event_t *e) {
-    (void)e;
-    AppEvent ev{};
-    ev.type = AppEventType::PumpTest;
-    s_manualCtx->bus->publish(ev, 0);
+    ev.type = AppEventType::SetChannelState;
+    ev.moduleAddr = (packed >> 8) & 0xFF;
+    ev.channelId = packed & 0xFF;
+    ev.valueBool = !lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+    s_zonesCtx->bus->publish(ev, 0);
+    ui_toast("Channel updated");
 }
 
 void build_manual_tab(lv_obj_t *parent, UiContext *ctx) {
-    s_manualCtx = ctx;
+    s_zonesCtx = ctx;
     lv_obj_set_layout(parent, LV_LAYOUT_FLEX);
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(parent, 10, 0);
 
-    lv_obj_t *grid = lv_obj_create(parent);
-    lv_obj_set_size(grid, LV_PCT(100), 300);
-    lv_obj_set_layout(grid, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(grid, LV_FLEX_FLOW_ROW_WRAP);
-
-    for (uint8_t i = 0; i < APP_MAX_ZONES; ++i) {
-        zoneBtns[i] = lv_btn_create(grid);
-        lv_obj_set_size(zoneBtns[i], 120, 60);
-        lv_obj_add_event_cb(zoneBtns[i], zone_cb, LV_EVENT_CLICKED, reinterpret_cast<void *>(i));
-        lv_obj_t *lbl = lv_label_create(zoneBtns[i]);
-        lv_label_set_text_fmt(lbl, "Zone %u", i + 1);
-        lv_obj_center(lbl);
-    }
-
-    lv_obj_t *controls = lv_obj_create(parent);
-    lv_obj_set_size(controls, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_layout(controls, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(controls, LV_FLEX_FLOW_ROW);
-
-    lv_obj_t *stopBtn = lv_btn_create(controls);
-    lv_obj_set_size(stopBtn, 180, 56);
-    lv_obj_add_event_cb(stopBtn, stop_all_cb, LV_EVENT_CLICKED, nullptr);
-    lv_obj_t *stopLbl = lv_label_create(stopBtn);
-    lv_label_set_text(stopLbl, "Stop All");
-    lv_obj_center(stopLbl);
-
-    lv_obj_t *pumpBtn = lv_btn_create(controls);
-    lv_obj_set_size(pumpBtn, 180, 56);
-    lv_obj_add_event_cb(pumpBtn, pump_test_cb, LV_EVENT_CLICKED, nullptr);
-    lv_obj_t *pumpLbl = lv_label_create(pumpBtn);
-    lv_label_set_text(pumpLbl, "Pump Test");
-    lv_obj_center(pumpLbl);
+    s_zoneRoot = lv_obj_create(parent);
+    lv_obj_set_size(s_zoneRoot, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_layout(s_zoneRoot, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(s_zoneRoot, LV_FLEX_FLOW_COLUMN);
 }
 
 void refresh_manual(UiContext *ctx) {
-    for (uint8_t i = 0; i < APP_MAX_ZONES; ++i) {
-        if (ctx->state->zones[i]) {
-            lv_obj_add_state(zoneBtns[i], LV_STATE_CHECKED);
-        } else {
-            lv_obj_clear_state(zoneBtns[i], LV_STATE_CHECKED);
+    if (xSemaphoreTake(ctx->stateMutex, pdMS_TO_TICKS(20)) != pdTRUE) return;
+    lv_obj_clean(s_zoneRoot);
+
+    for (const auto &m : ctx->state->modules) {
+        lv_obj_t *card = lv_obj_create(s_zoneRoot);
+        lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+        lv_obj_set_layout(card, LV_LAYOUT_FLEX);
+        lv_obj_set_flex_flow(card, LV_FLEX_FLOW_ROW_WRAP);
+
+        lv_obj_t *title = lv_label_create(card);
+        lv_label_set_text_fmt(title, "Module %u", m.address);
+        lv_obj_set_width(title, LV_PCT(100));
+
+        for (const auto &ch : m.channels) {
+            lv_obj_t *btn = lv_btn_create(card);
+            lv_obj_set_size(btn, 150, 56);
+            if (ch.state) lv_obj_add_state(btn, LV_STATE_CHECKED);
+            uint32_t packed = (static_cast<uint32_t>(m.address) << 8) | ch.id;
+            lv_obj_add_event_cb(btn, channel_cb, LV_EVENT_CLICKED, reinterpret_cast<void *>(packed));
+            lv_obj_t *lbl = lv_label_create(btn);
+            lv_label_set_text_fmt(lbl, "%s %u %s", LV_SYMBOL_POWER, ch.id + 1, ch.state ? "ON" : "OFF");
+            lv_obj_center(lbl);
         }
     }
+    xSemaphoreGive(ctx->stateMutex);
 }
 
 } // namespace ui
